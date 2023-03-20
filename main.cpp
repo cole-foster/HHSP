@@ -8,7 +8,7 @@
 #include "CLI11.hpp"
 #include "datasets.hpp"
 #include "GHSP.hpp"
-#include "pivot-selection.hpp"
+#include "pivot-index.hpp"
 
 void printSet(std::vector<unsigned int> const &set);
 
@@ -55,19 +55,19 @@ int main(int argc, char **argv) {
     printf("    * N=%u\n",datasetSize);
     printf("    * D=%u\n",dimension);
     printf("    * r=%.4f\n",radius);
-    PivotLayer pivotLayer;    
+    std::vector<Pivot> pivotsList;    
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    PivotSelection::selectPivots(radius, *sparseMatrix, pivotLayer);
+    PivotIndex::Greedy2L(radius, *sparseMatrix, pivotsList);
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
     unsigned long long int distances_ps = (dEnd - dStart);
     double time_ps = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-    printf("    * |P|=%u\n",pivotLayer.pivotIndices->size());    
+    printf("    * |P|=%u\n",pivotsList.size());    
     printf("    * PS Distances: %llu \n",distances_ps);
     printf("    * PS Time (s): %.4f \n",time_ps);
-    // bool success = PivotSelection::validatePivotSelection(pivotLayer,*sparseMatrix);
-    // printf("    * Minimal Coverage?: %u\n\n",success);
+    bool success = PivotIndex::validatePivotSelection(pivotsList, *sparseMatrix);
+    printf("    * Minimal Coverage?: %u\n\n",success);
 
     // perform nns time for all pivots, get average results
     printf("Nearest Neighbor Search By Brute Force: \n");
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::pivotNNS(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_nns_pivot[queryIndex]);
+        GHSP::pivotNNS(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_nns_pivot[queryIndex]);
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -114,37 +114,37 @@ int main(int argc, char **argv) {
     printf("    * Correct?: %u\n\n",nns_correct);
 
     // perform hsp search by brute force
-    // printf("HSP Search By Brute Force: \n");
-    // std::vector<std::vector<unsigned int>> results_hsp_bf{};
-    // results_hsp_bf.resize(testsetSize);
-    // dStart = sparseMatrix->_distanceComputationCount;
-    // tStart = std::chrono::high_resolution_clock::now();\
-    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-    //     GHSP::HSP(datasetSize + queryIndex, datasetSize, *sparseMatrix, results_hsp_bf[queryIndex]);
-    // }
-    // tEnd= std::chrono::high_resolution_clock::now();
-    // dEnd = sparseMatrix->_distanceComputationCount;
-    // double distances_hsp_brute = (dEnd - dStart)/((double)testsetSize);
-    // double time_hsp_brute = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-    // printf("    * Time (ms): %.4f \n",time_hsp_brute*1000);
-    // printf("    * Distances: %.2f \n\n",distances_hsp_brute);
-
-    // perform hsp search by pivot index
-    printf("HSP Search By PivotIndex: \n");
-    std::vector<std::vector<unsigned int>> results_hsp_pivot{};
-    results_hsp_pivot.resize(testsetSize);
+    printf("HSP Search By Brute Force: \n");
+    std::vector<std::vector<unsigned int>> results_hsp_bf{};
+    results_hsp_bf.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();\
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_Search(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_hsp_pivot[queryIndex]);
-        // break;
+        GHSP::HSP(datasetSize + queryIndex, datasetSize, *sparseMatrix, results_hsp_bf[queryIndex]);
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
-    double distances_hsp_pivot = (dEnd - dStart)/((double)testsetSize);
-    double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-    printf("    * Time (ms): %.4f \n",time_hsp_pivot*1000);
-    printf("    * Distances: %.2f \n",distances_hsp_pivot);
+    double distances_hsp_brute = (dEnd - dStart)/((double)testsetSize);
+    double time_hsp_brute = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
+    printf("    * Time (ms): %.4f \n",time_hsp_brute*1000);
+    printf("    * Distances: %.2f \n\n",distances_hsp_brute);
+
+    // // perform hsp search by pivot index
+    // printf("HSP Search By PivotIndex: \n");
+    // std::vector<std::vector<unsigned int>> results_hsp_pivot{};
+    // results_hsp_pivot.resize(testsetSize);
+    // dStart = sparseMatrix->_distanceComputationCount;
+    // tStart = std::chrono::high_resolution_clock::now();\
+    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+    //     GHSP::GHSP_Search(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_hsp_pivot[queryIndex]);
+    //     // break;
+    // }
+    // tEnd= std::chrono::high_resolution_clock::now();
+    // dEnd = sparseMatrix->_distanceComputationCount;
+    // double distances_hsp_pivot = (dEnd - dStart)/((double)testsetSize);
+    // double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
+    // printf("    * Time (ms): %.4f \n",time_hsp_pivot*1000);
+    // printf("    * Distances: %.2f \n",distances_hsp_pivot);
 
     // // ensure correctness
     // bool hsp_correct = true;
@@ -160,16 +160,16 @@ int main(int argc, char **argv) {
     // }
     // printf("    * Correct?: %u\n\n",hsp_correct);
 
-    printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
-    printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());
-    printf("%llu,%.4f,",distances_ps,time_ps);
-    printf("%.2f,%.4f,",distances_nns_brute,time_nns_brute*1000);
-    printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
-    // printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
-    printf("-,-,");
-    printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
-    // printf("%u\n",hsp_correct);
-    printf("-\n");
+    // printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
+    // printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());
+    // printf("%llu,%.4f,",distances_ps,time_ps);
+    // printf("%.2f,%.4f,",distances_nns_brute,time_nns_brute*1000);
+    // printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
+    // // printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
+    // printf("-,-,");
+    // printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
+    // // printf("%u\n",hsp_correct);
+    // printf("-\n");
 
     printf("Done! Have a good day! \n");
     delete[] dataPointer;

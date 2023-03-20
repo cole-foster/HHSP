@@ -21,14 +21,14 @@ set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # all files
-set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot-layer.hpp pivot-selection.hpp GHSP.hpp)
-set(SOURCES sparse-matrix.cpp pivot-selection.cpp GHSP.cpp)
+set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot.hpp pivot-index.hpp GHSP.hpp)
+set(SOURCES sparse-matrix.cpp pivot-index.cpp GHSP.cpp)
 
 # add scripts
 add_executable(main main.cpp ${HEADERS} ${SOURCES})
 target_include_directories(main PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
 install(TARGETS main)
 
-add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
-install(TARGETS opt)
+# add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
+# target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
+# install(TARGETS opt)
