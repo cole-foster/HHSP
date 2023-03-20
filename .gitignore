@@ -1,0 +1,10 @@
+sparse-map/
+slurms/
+old/
+build/
+bin/
+.vscode/
+test.sh
+run_batch
+commands.txt
+bashRun_commands_csv.sh
