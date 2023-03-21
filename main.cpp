@@ -33,6 +33,10 @@ int main(int argc, char **argv) {
     app.add_option("-v,--verbose", verbose, "Show hRNG Statistics During Eval");
     CLI11_PARSE(app, argc, argv);
 
+    //====================================================================
+    //                      Getting Dataset
+    //====================================================================
+
     // get dataset (with test set added)
     // dataset: 0...datsetSize-1, queryset: datasetSize-datasetSize+testsetSize
     float *dataPointer = NULL;
@@ -46,9 +50,17 @@ int main(int argc, char **argv) {
     unsigned long long int dStart, dEnd;
     std::chrono::high_resolution_clock::time_point tStart,tEnd;
 
+    //====================================================================
+    //                Initializing Distance Data Structure
+    //====================================================================
+
     // create sparsematrix, really just holds datapointer and computes distances
     std::shared_ptr<SparseMatrix> sparseMatrix = std::make_shared<SparseMatrix>(dataPointer, datasetSize+testsetSize, dimension);
     sparseMatrix->_datasetSize = datasetSize;
+
+    //====================================================================
+    //                     Creating Pivot Index
+    //====================================================================
 
     // create pivot index
     printf("Pivot Selection: \n");
@@ -69,7 +81,14 @@ int main(int argc, char **argv) {
     bool success = PivotIndex::validatePivotSelection(pivotsList, *sparseMatrix);
     printf("    * Minimal Coverage?: %u\n\n",success);
 
-    // perform nns time for all pivots, get average results
+    //====================================================================
+    //                   Nearest Neighbor Search
+    //====================================================================
+
+    //---
+    //                    Brute Force NNS
+    //---
+
     printf("Nearest Neighbor Search By Brute Force: \n");
     std::vector<unsigned int> results_nns_bf{};
     results_nns_bf.resize(testsetSize);
@@ -84,6 +103,10 @@ int main(int argc, char **argv) {
     double time_nns_brute = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
     printf("    * Time (ms): %.4f \n",time_nns_brute*1000);
     printf("    * Distances: %.2f \n\n",distances_nns_brute);
+
+    //---
+    //                    NNS By Pivot Index
+    //---
 
     // perform nns by index
     printf("Nearest Neighbor Search By PivotIndex: \n");
@@ -101,7 +124,10 @@ int main(int argc, char **argv) {
     printf("    * Time (ms): %.4f \n",time_nns_pivot*1000);
     printf("    * Distances: %.2f \n",distances_nns_pivot);
 
-    // ensure correctness
+    //---
+    //                    Validate Correctness
+    //---
+
     bool nns_correct = true;
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
         if (results_nns_bf[queryIndex] != results_nns_pivot[queryIndex]) {
@@ -113,7 +139,14 @@ int main(int argc, char **argv) {
     }
     printf("    * Correct?: %u\n\n",nns_correct);
 
-    // perform hsp search by brute force
+    //====================================================================
+    //                      HSP Search
+    //====================================================================
+
+    //---
+    //                    Brute Force HSP Search
+    //---
+
     printf("HSP Search By Brute Force: \n");
     std::vector<std::vector<unsigned int>> results_hsp_bf{};
     results_hsp_bf.resize(testsetSize);
@@ -129,36 +162,48 @@ int main(int argc, char **argv) {
     printf("    * Time (ms): %.4f \n",time_hsp_brute*1000);
     printf("    * Distances: %.2f \n\n",distances_hsp_brute);
 
-    // // perform hsp search by pivot index
-    // printf("HSP Search By PivotIndex: \n");
-    // std::vector<std::vector<unsigned int>> results_hsp_pivot{};
-    // results_hsp_pivot.resize(testsetSize);
-    // dStart = sparseMatrix->_distanceComputationCount;
-    // tStart = std::chrono::high_resolution_clock::now();\
-    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-    //     GHSP::GHSP_Search(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_hsp_pivot[queryIndex]);
-    //     // break;
-    // }
-    // tEnd= std::chrono::high_resolution_clock::now();
-    // dEnd = sparseMatrix->_distanceComputationCount;
-    // double distances_hsp_pivot = (dEnd - dStart)/((double)testsetSize);
-    // double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-    // printf("    * Time (ms): %.4f \n",time_hsp_pivot*1000);
-    // printf("    * Distances: %.2f \n",distances_hsp_pivot);
+    //---
+    //                    HSP Search By Pivot Index
+    //---
 
-    // // ensure correctness
-    // bool hsp_correct = true;
-    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-    //     if (results_hsp_bf[queryIndex] != results_hsp_pivot[queryIndex]) {
-    //         hsp_correct = false;
-    //         printf("Error: Pivot NNS does not match GT!\n");
-    //         printf("Q:%u,\n",queryIndex);
-    //         printf("GT: "); printSet(results_hsp_bf[queryIndex]);
-    //         printf("PI: "); printSet(results_hsp_pivot[queryIndex]);
-    //         break;
-    //     }
-    // }
-    // printf("    * Correct?: %u\n\n",hsp_correct);
+    // perform hsp search by pivot index
+    printf("HSP Search By PivotIndex: \n");
+    std::vector<std::vector<unsigned int>> results_hsp_pivot{};
+    results_hsp_pivot.resize(testsetSize);
+    dStart = sparseMatrix->_distanceComputationCount;
+    tStart = std::chrono::high_resolution_clock::now();
+    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        GHSP::Recursive_GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex]);
+        break;
+    }
+    tEnd= std::chrono::high_resolution_clock::now();
+    dEnd = sparseMatrix->_distanceComputationCount;
+    double distances_hsp_pivot = (dEnd - dStart)/((double)testsetSize);
+    double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
+    printf("    * Time (ms): %.4f \n",time_hsp_pivot*1000);
+    printf("    * Distances: %.2f \n",distances_hsp_pivot);
+
+    //---
+    //                    Validate Correctness
+    //---
+
+    // ensure correctness
+    bool hsp_correct = true;
+    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        if (results_hsp_bf[queryIndex] != results_hsp_pivot[queryIndex]) {
+            hsp_correct = false;
+            printf("Error: Pivot NNS does not match GT!\n");
+            printf("Q:%u,\n",queryIndex);
+            printf("GT: "); printSet(results_hsp_bf[queryIndex]);
+            printf("PI: "); printSet(results_hsp_pivot[queryIndex]);
+            break;
+        }
+    }
+    printf("    * Correct?: %u\n\n",hsp_correct);
+
+    //====================================================================
+    //                      Printing Final Results
+    //====================================================================
 
     // printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
     // printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());

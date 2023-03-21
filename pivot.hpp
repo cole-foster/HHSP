@@ -18,6 +18,7 @@ struct Pivot {
         }
     }
     inline void addChild(unsigned int childIndex, float const distance) {
+        _childCount++;
         _pivotDomain.push_back(Pivot(childIndex, 0.0f));  // initialize point as a pivot with 0 radius
         if (distance > _maxChildDistance) {
             _maxChildDistance = distance;
@@ -25,8 +26,9 @@ struct Pivot {
     }
     inline void setIntermediate(bool flag) { _intermediate = flag; }
 
-    unsigned int const _index = 0;
-    float const _radius = 0.0f;
+    unsigned int _index = 0;
+    float _radius = 0.0f;
+    int _childCount = 0;
     float _maxChildDistance = 0.0f;
     std::vector<Pivot> _pivotDomain{};
     bool _intermediate = false;
