@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
     tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
         GHSP::Recursive_GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex]);
-        break;
+        // break;
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -205,15 +205,15 @@ int main(int argc, char **argv) {
     //                      Printing Final Results
     //====================================================================
 
-    // printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
-    // printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());
-    // printf("%llu,%.4f,",distances_ps,time_ps);
-    // printf("%.2f,%.4f,",distances_nns_brute,time_nns_brute*1000);
-    // printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
-    // // printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
+    printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
+    printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotsList.size());
+    printf("%llu,%.4f,",distances_ps,time_ps);
+    printf("%.2f,%.4f,",distances_nns_brute,time_nns_brute*1000);
+    printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
+    printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
     // printf("-,-,");
-    // printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
-    // // printf("%u\n",hsp_correct);
+    printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
+    printf("%u\n",hsp_correct);
     // printf("-\n");
 
     printf("Done! Have a good day! \n");

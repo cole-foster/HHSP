@@ -162,16 +162,16 @@ void recursiveSearch(Pivot const &parentPivot, unsigned int const queryIndex,
  * @param sparseMatrix
  * @param queryDistances
  */
-void recursiveSearch_Validation(Pivot const &parentPivot, unsigned int const queryIndex,
+void recursiveSearch_Validation(Pivot& parentPivot, unsigned int const queryIndex,
                                 std::vector<unsigned int> const &neighbors, unsigned int &index1, float &dmin,
                                 SparseMatrix &sparseMatrix, std::vector<float> &queryDistances,
-                                std::vector<Pivot> &newPivotList) {
+                                std::vector<Pivot*> &newPivotList) {
     // iterate through pivot domain
     if (parentPivot._childCount <= 0) return;
 
-    std::vector<Pivot>::const_iterator it1;
+    std::vector<Pivot>::iterator it1;
     for (it1 = parentPivot._pivotDomain.begin(); it1 != parentPivot._pivotDomain.end(); it1++) {
-        Pivot childPivot = (*it1);
+        Pivot& childPivot = (*it1);
         float const distance_Qc = getQueryDistance(queryIndex, childPivot._index, sparseMatrix, queryDistances);
 
         // ensure if pivot/pivot domain is active/invalidated
@@ -200,7 +200,7 @@ void recursiveSearch_Validation(Pivot const &parentPivot, unsigned int const que
         if (distance_Qc <= dmin + childPivot._maxChildDistance) {
             if (childPivot._childCount > 0) {
                 if (flag_outcome == 0) {  // if active, don't need validation checks
-                    newPivotList.push_back(childPivot);
+                    newPivotList.push_back(&childPivot);
                     recursiveSearch(childPivot, queryIndex, neighbors, index1, dmin, sparseMatrix, queryDistances);
 
                 } else if (flag_outcome == 2) {  // if intermeidate, need validation checks
@@ -208,11 +208,11 @@ void recursiveSearch_Validation(Pivot const &parentPivot, unsigned int const que
                                                queryDistances, newPivotList);
                 }
             } else {
-                newPivotList.push_back(childPivot);
+                newPivotList.push_back(&childPivot);
             }
         } else {
             // if we don't have to search the domain, add it to end of list (if int. or not)
-            newPivotList.push_back(childPivot);
+            newPivotList.push_back(&childPivot);
         }
     }
 
@@ -227,7 +227,7 @@ void recursiveSearch_Validation(Pivot const &parentPivot, unsigned int const que
  * @param sparseMatrix
  * @param neighbors
  */
-void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList,
+void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const& pivotsList,
                                  SparseMatrix &sparseMatrix, std::vector<unsigned int> &neighbors) {
     neighbors.clear();
 
@@ -237,13 +237,22 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
     queryDistances.resize(datasetSize, -1.0f);
 
     // one list to rule them all!
-    std::vector<Pivot> A = pivotsList;
+    // std::vector<Pivot> A = pivotsList;
+    std::vector<Pivot> pivotsList_cpy = pivotsList;
+    std::vector<Pivot*> A{};
+    A.resize(pivotsList_cpy.size());
+    
+    for (int it1 = 0; it1 < pivotsList_cpy.size(); it1++) {
+        A[it1] = &pivotsList_cpy[it1];
+    }
 
     // find the HSP neighbors in a loop
     while (A.size() > 0) {
+        // printf("        * Length A: %u\n", A.size());
+
         // TEMP: TIMING
-        std::chrono::high_resolution_clock::time_point tStart, tEnd;
-        tStart = std::chrono::high_resolution_clock::now();
+        // std::chrono::high_resolution_clock::time_point tStart, tEnd;
+        // tStart = std::chrono::high_resolution_clock::now();
         /**
          * ============================================================
          * @brief STEP 1: Collect dmin as preliminary closest active point
@@ -253,9 +262,9 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         float dmin = HUGE_VAL;
 
         // update dmin with only validated pivots in I1
-        std::vector<Pivot>::iterator it1;
+        std::vector<Pivot*>::iterator it1;
         for (it1 = A.begin(); it1 != A.end(); it1++) {
-            Pivot const &p = (*it1);
+            Pivot& p = *(*it1);
             float const distance_Qp = getQueryDistance(queryIndex, p._index, sparseMatrix, queryDistances);
 
             // if p is an hsp neighbor, ignore
@@ -287,9 +296,9 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         // Intermediate pivots will have to have their entire domain validated, thus such pivots are removed from the
         // list and their domain is added. We remain depth-first, so let us keep a list of new pivots we will insert at
         // the end.
-        std::vector<Pivot> newPivotList{};
+        std::vector<Pivot*> newPivotList{};
         for (it1 = A.begin(); it1 != A.end(); /* iterate in loop */) {
-            Pivot const &p = (*it1);
+            Pivot &p = *(*it1);
             float const distance_Qp = getQueryDistance(queryIndex, p._index, sparseMatrix, queryDistances);
 
             // could pivot domain contain a closer point?
@@ -317,38 +326,37 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         A.insert(A.end(), newPivotList.begin(), newPivotList.end());
         if (dmin > 10000) continue;  // large, magic number signaling no neighbor possible
 
-        // TEMP: TIMING
-        tEnd = std::chrono::high_resolution_clock::now();
-        double time_nns = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
-        printf("        - Time Search (ms): %.4f \n", time_nns * 1000);
-        tStart = std::chrono::high_resolution_clock::now();
+        // // TEMP: TIMING
+        // tEnd = std::chrono::high_resolution_clock::now();
+        // double time_nns = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
+        // printf("        - Time Search (ms): %.4f \n", time_nns * 1000);
 
         // add the next HSP neighbor
         unsigned int const x1 = index1;
         float const distance_Q1 = dmin;
         neighbors.push_back(x1);
 
-        printf("        * Length A: %u\n", A.size());
-
         /**
          * ============================================================
          * @brief STEP 3: Perform GHSP test on Active Pivots List
          * ============================================================
          */
+
+        // std::vector<std::vector<Pivot>::iterator> deleteList{};
+        // std::vector<Pivot*>::iterator it2;
         for (it1 = A.begin(); it1 != A.end(); /* iterate in loop */) {
-            Pivot &p2 = (*it1);
+            Pivot& p2 = *(*it1);
             float const radius = p2._maxChildDistance;
             float const distance_Q2 = getQueryDistance(queryIndex, p2._index, sparseMatrix, queryDistances);
-            float const distance_12 = computeDistance(x1, p2._index, sparseMatrix);
 
-            // WHY DOES THIS BREAK IT
-            if (radius <= 0) {  // normal HSP test
-                if (distance_Q1 < distance_Q2 && distance_12 < distance_Q2) {
-                    it1 = A.erase(it1);
-                } else {
-                    ++it1;
-                }
+            //call it intermediate and continue
+            if (distance_Q1 >= distance_Q2  - radius || distance_Q2 < radius) {
+                p2._intermediate = true; // p2.setIntermediate(true);
+                ++it1;
+
             } else {
+                float const distance_12 = computeDistance(x1, p2._index, sparseMatrix);
+
                 // Case 1: Entire domain invalidated
                 if (distance_Q2 * distance_Q2 - distance_12 * distance_12 > 2 * radius * distance_Q1 &&
                     distance_Q1 < distance_Q2 - radius) {
@@ -360,20 +368,58 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
                 }
                 // Case 3: Intermediate pivot
                 else {
-                    p2.setIntermediate(true);
+                    p2._intermediate = true; // p2.setIntermediate(true);
                     ++it1;
                 }
             }
         }
 
+        // delete all elements
+        // for (int it2 = deleteList.size() - 1; it2 >= 0; it2--) {
+        //     A.erase(deleteList[it2]);
+        // }
+
         // TEMP: TIMING
-        tEnd = std::chrono::high_resolution_clock::now();
-        double time_val = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
-        printf("        - Time Val (ms): %.4f \n", time_val * 1000);
+        // tEnd = std::chrono::high_resolution_clock::now();
+        // double time_val = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
+        // printf("        - Time Val (ms): %.4f \n", time_val * 1000);
     }
 
     return;
 }
+
+//         // iterate through active pivots list
+//         for (std::vector<unsigned int>::iterator it2 = A1.begin(); it2 != A1.end(); /* iterate in loop */) {
+//             unsigned int const p2 = (*it2);
+//             float const distance_Q2 = getQueryDistance(queryIndex, p2, sparseMatrix, queryDistances);
+
+//             // Pivot cannot be excluded by x1 or any future HSP neighbor
+//             if (distance_Q1 >= distance_Q2 - radius || distance_Q2 < radius) {
+//                 tsl::sparse_set<unsigned int> const &pivotDomain = pivotLayer.get_pivotChildren(p2);
+//                 A2.insert(A2.end(), pivotDomain.begin(), pivotDomain.end());
+//                 it2 = A1.erase(it2);
+
+//             } else {
+//                 float const distance_12 = computeDistance(x1, p2, sparseMatrix);
+
+//                 // Proposition: Entire Domain Invalidated
+//                 if (distance_Q2 * distance_Q2 - distance_12 * distance_12 > 2 * radius * distance_Q1) {
+//                     it2 = A1.erase(it2);
+//                 }
+//                 // Proposition: Entire Domain Safe
+//                 else if (distance_12 * distance_12 - distance_Q2 * distance_Q2 > 2 * radius * distance_Q1) {
+//                     ++it2;
+//                 }
+//                 // Otherwise, Pivot Falls in Intermediate Region
+//                 else {
+//                     I1.push_back(p2);
+//                     it2 = A1.erase(it2);
+//                 }
+//             }
+//         }
+
+
+
 
 /**
  * @brief Get NN by pivot index
