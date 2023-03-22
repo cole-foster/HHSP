@@ -24,14 +24,12 @@ struct Pivot {
             _maxChildDistance = distance;
         }
     }
-    inline void setIntermediate(bool flag) { _intermediate = flag; }
 
     unsigned int _index = 0;
     float _radius = 0.0f;
     int _childCount = 0;
     float _maxChildDistance = 0.0f;
     std::vector<Pivot> _pivotDomain{};
-    bool _intermediate = false;
 };
 
 #endif  // Pivot_hpp

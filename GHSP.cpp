@@ -162,27 +162,28 @@ void recursiveSearch(Pivot const &parentPivot, unsigned int const queryIndex,
  * @param sparseMatrix
  * @param queryDistances
  */
-void recursiveSearch_Validation(Pivot& parentPivot, unsigned int const queryIndex,
+void recursiveSearch_Validation(Pivot const& parentPivot, unsigned int const queryIndex,
                                 std::vector<unsigned int> const &neighbors, unsigned int &index1, float &dmin,
                                 SparseMatrix &sparseMatrix, std::vector<float> &queryDistances,
-                                std::vector<Pivot*> &newPivotList) {
+                                std::vector<std::pair<Pivot const*,bool>>& newPivotList) {
     // iterate through pivot domain
     if (parentPivot._childCount <= 0) return;
 
-    std::vector<Pivot>::iterator it1;
+    std::vector<Pivot>::const_iterator it1;
     for (it1 = parentPivot._pivotDomain.begin(); it1 != parentPivot._pivotDomain.end(); it1++) {
-        Pivot& childPivot = (*it1);
+        Pivot const& childPivot = (*it1);
+        bool flag_childIntermediate = false;
         float const distance_Qc = getQueryDistance(queryIndex, childPivot._index, sparseMatrix, queryDistances);
 
         // ensure if pivot/pivot domain is active/invalidated
         bool pointValid;
         int flag_outcome = validatePivot(childPivot, queryIndex, neighbors, sparseMatrix, queryDistances, pointValid);
         if (flag_outcome == 0) {  // entire domain safe
-            childPivot.setIntermediate(false);
+            flag_childIntermediate = false;
         } else if (flag_outcome == 1) {  // entire domain pivot is eliminated!
             continue;
         } else if (flag_outcome == 2) {  // pivot in intermediate region
-            childPivot.setIntermediate(true);
+            flag_childIntermediate = true;
         }
 
         // update dmin if active
@@ -199,20 +200,20 @@ void recursiveSearch_Validation(Pivot& parentPivot, unsigned int const queryInde
         // check if domain can hold a closer point
         if (distance_Qc <= dmin + childPivot._maxChildDistance) {
             if (childPivot._childCount > 0) {
-                if (flag_outcome == 0) {  // if active, don't need validation checks
-                    newPivotList.push_back(&childPivot);
+                if (!flag_childIntermediate) {  // if active, don't need validation checks
+                    newPivotList.emplace_back(&childPivot,flag_childIntermediate);
                     recursiveSearch(childPivot, queryIndex, neighbors, index1, dmin, sparseMatrix, queryDistances);
 
-                } else if (flag_outcome == 2) {  // if intermeidate, need validation checks
+                } else if (flag_childIntermediate) {  // if intermeidate, need validation checks
                     recursiveSearch_Validation(childPivot, queryIndex, neighbors, index1, dmin, sparseMatrix,
                                                queryDistances, newPivotList);
                 }
             } else {
-                newPivotList.push_back(&childPivot);
+                newPivotList.emplace_back(&childPivot,flag_childIntermediate);
             }
         } else {
             // if we don't have to search the domain, add it to end of list (if int. or not)
-            newPivotList.push_back(&childPivot);
+            newPivotList.emplace_back(&childPivot,flag_childIntermediate);
         }
     }
 
@@ -237,13 +238,11 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
     queryDistances.resize(datasetSize, -1.0f);
 
     // one list to rule them all!
-    // std::vector<Pivot> A = pivotsList;
-    std::vector<Pivot> pivotsList_cpy = pivotsList;
-    std::vector<Pivot*> A{};
-    A.resize(pivotsList_cpy.size());
-    
-    for (int it1 = 0; it1 < pivotsList_cpy.size(); it1++) {
-        A[it1] = &pivotsList_cpy[it1];
+    // pair: pointer to pivot, flag for intermeidate or not. 
+    std::vector<std::pair<Pivot const*, bool>> A {};
+    A.reserve(pivotsList.size());
+    for (int it1 = 0; it1 < pivotsList.size(); it1++) {
+        A.emplace_back(&pivotsList[it1],false); // all start as not intermediate
     }
 
     // find the HSP neighbors in a loop
@@ -262,9 +261,10 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         float dmin = HUGE_VAL;
 
         // update dmin with only validated pivots in I1
-        std::vector<Pivot*>::iterator it1;
+        std::vector<std::pair<Pivot const*,bool>>::iterator it1;
         for (it1 = A.begin(); it1 != A.end(); it1++) {
-            Pivot& p = *(*it1);
+            Pivot const& p = *((*it1).first);
+            bool flag_intermediate = (*it1).second;
             float const distance_Qp = getQueryDistance(queryIndex, p._index, sparseMatrix, queryDistances);
 
             // if p is an hsp neighbor, ignore
@@ -274,7 +274,7 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
             if (distance_Qp < dmin) {
                 // validate against existing hsp neighbors
                 bool flag_valid = true;
-                if (p._intermediate) {
+                if (flag_intermediate) {
                     flag_valid = validatePoint(p._index, queryIndex, neighbors, sparseMatrix, queryDistances);
                 }
 
@@ -296,9 +296,10 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         // Intermediate pivots will have to have their entire domain validated, thus such pivots are removed from the
         // list and their domain is added. We remain depth-first, so let us keep a list of new pivots we will insert at
         // the end.
-        std::vector<Pivot*> newPivotList{};
+        std::vector<std::pair<Pivot const*,bool>> newPivotList{};
         for (it1 = A.begin(); it1 != A.end(); /* iterate in loop */) {
-            Pivot &p = *(*it1);
+            Pivot const& p = *((*it1).first);
+            bool flag_intermediate = (*it1).second;
             float const distance_Qp = getQueryDistance(queryIndex, p._index, sparseMatrix, queryDistances);
 
             // could pivot domain contain a closer point?
@@ -308,7 +309,7 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
             } else {  // yes, yes it can
 
                 // need to recursively check all domains
-                if (!p._intermediate) {  // no validation checks necessary
+                if (!flag_intermediate) {  // no validation checks necessary
                     recursiveSearch(p, queryIndex, neighbors, index1, dmin, sparseMatrix, queryDistances);
                     ++it1;
 
@@ -345,13 +346,14 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
         // std::vector<std::vector<Pivot>::iterator> deleteList{};
         // std::vector<Pivot*>::iterator it2;
         for (it1 = A.begin(); it1 != A.end(); /* iterate in loop */) {
-            Pivot& p2 = *(*it1);
+            Pivot const& p2 = *((*it1).first);
+            bool& flag_intermediate = (*it1).second;
             float const radius = p2._maxChildDistance;
             float const distance_Q2 = getQueryDistance(queryIndex, p2._index, sparseMatrix, queryDistances);
 
             //call it intermediate and continue
             if (distance_Q1 >= distance_Q2  - radius || distance_Q2 < radius) {
-                p2._intermediate = true; // p2.setIntermediate(true);
+                flag_intermediate = true; // p2.setIntermediate(true);
                 ++it1;
 
             } else {
@@ -368,7 +370,7 @@ void GHSP::Recursive_GHSP_Search(unsigned int const queryIndex, std::vector<Pivo
                 }
                 // Case 3: Intermediate pivot
                 else {
-                    p2._intermediate = true; // p2.setIntermediate(true);
+                    flag_intermediate = true; // p2.setIntermediate(true);
                     ++it1;
                 }
             }
