@@ -15,20 +15,33 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native" CACHE STRING "" FORCE)
 # -- See this: https://gcc.gnu.org/ml/gcc/2001-07/msg02150.html --
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math" CACHE STRING "" FORCE)
 
+# hRNG optimization
+set(HRNG_OPT TRUE)
+if (HRNG_OPT)
+    #SET(NLOPT_HOME "/home/colef8/nlopt")
+    SET(NLOPT_HOME "/users/cfoste18/data/cfoste18/hRNG/hRNG_Optimization/include/nlopt/install")
+    SET(NLOPT_DIRECTORIES "${NLOPT_HOME}/include/")
+    find_library(NLOPT nlopt PATHS "${NLOPT_HOME}/lib/")
+endif()
+MESSAGE("NLOPT: ${NLOPT}")
+
+
 # set CMAKE_INSTALL_PREFIX as default location of `make install` command
 # creates a bin/ folder within the location
 set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # all files
-set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot.hpp pivot-index.hpp GHSP.hpp)
-set(SOURCES sparse-matrix.cpp pivot-index.cpp GHSP.cpp)
+set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot.hpp pivot-index.hpp NNS.hpp GHSP.hpp)
+set(SOURCES sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
 
 # add scripts
 add_executable(main main.cpp ${HEADERS} ${SOURCES})
 target_include_directories(main PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
 install(TARGETS main)
 
-# add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-# target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
-# install(TARGETS opt)
+add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
+target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
+install(TARGETS opt)
+target_include_directories(opt PRIVATE ${NLOPT_DIRECTORIES})
+target_link_libraries(opt PRIVATE ${NLOPT})

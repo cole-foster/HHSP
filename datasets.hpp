@@ -39,15 +39,16 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 namespace Datasets {
 // generate dataset of [N,D] floating point numbers
 // uniformly distributed from [-1,1]
-void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N, unsigned int seed) {
+void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N, float b, unsigned int seed) {
     srand(seed);  // for same initializations of random variables
 
     unsigned int numElements = (unsigned int)dimension * N;
     // delete[] dataPointer;
     dataPointer = new float[N * dimension];
 
+    // produces numbers 0 to 1. multiply by 2b, subtract by b.
     for (int i = 0; i < numElements; i++) {
-        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
+        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX))*2*b - b;
     }
 }
 
