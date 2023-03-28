@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
     //---
 
     // perform nns by index
-    printf("Nearest Neighbor Search By PivotIndex: \n");
+    printf("Nearest Neighbor Search By PivotIndex: Breadth-First \n");
     std::vector<unsigned int> results_nns_pivot{};
     results_nns_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
@@ -135,7 +135,6 @@ int main(int argc, char **argv) {
 
     bool nns_correct = true;
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        if (queryIndex == 15) printf("Q:15, NN:%u\n",results_nns_bf[queryIndex]);
         if (results_nns_bf[queryIndex] != results_nns_pivot[queryIndex]) {
             nns_correct = false;
             printf("Error: Pivot NNS does not match GT!\n");

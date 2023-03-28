@@ -14,6 +14,8 @@ void Search_BF(unsigned int const queryIndex, unsigned int const datasetSize, Sp
                unsigned int &nearestNeighbor);
 void Search(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
             unsigned int &nearestNeighbor);
+// void Search1(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
+//             unsigned int &nearestNeighbor);
 
 // helper functions
 float const computeDistance(unsigned int const index1, unsigned int const index2, SparseMatrix &sparseMatrix);
