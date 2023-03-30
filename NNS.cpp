@@ -1,5 +1,7 @@
 #include "NNS.hpp"
 
+#include <bits/stdc++.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -7,15 +9,17 @@
 
 namespace NNS {
 
-void depthFirstSearch(const Pivot* pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
+typedef std::priority_queue<std::pair<float, const Pivot*>, std::vector<std::pair<float, const Pivot*>>,
+                        std::greater<std::pair<float, const Pivot*>>> PriorityQueue;
 
-void recursiveSearch(std::vector<const Pivot*> pivotList,  unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
+void recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, unsigned int &index1,
+                     float &dmin, SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
 
-void recursiveSearch1(Pivot const &parentPivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                          SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
-}
+// void depthFirstSearch(const Pivot *pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
+//                       SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
+
+}  // namespace NNS
+
 
 /**
  * @brief Get NN by pivot index
@@ -34,124 +38,82 @@ void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivots
     std::vector<float> queryDistances{};
     queryDistances.resize(datasetSize, -1.0f);
 
-    // define search radius as distance to closest pivot
-    const Pivot* closestPivot;
+    // Define the search radius and create priority queue
+    PriorityQueue pqueue{}; // GOTTA USE A FASTER LIBRARY
     std::vector<Pivot>::const_iterator it1, it2;
     for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
-        const Pivot* pivot = &(*it1);
+        const Pivot *pivot = &(*it1);
         float const distance = getQueryDistance(queryIndex, pivot->_index, sparseMatrix, queryDistances);
+        pqueue.push(std::make_pair(distance,pivot));
 
         // get an estimate of the NN by only using pivots, defines search radius
         if (distance < searchRadius) {
             searchRadius = distance;
             nearestNeighbor = pivot->_index;
-            closestPivot = pivot;
         }
     }
 
-    // Depth first greedy search to get small dmin
-    if (closestPivot->_childCount > 0) {
-        depthFirstSearch(closestPivot, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, queryDistances);
-    }
-
-    // find the closest point from those pivot domains within the search radius
-    std::vector<const Pivot*> nextPivotList{};
-    for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
-        Pivot const &pivot = (*it1);
-        float const distance = getQueryDistance(queryIndex, pivot._index, sparseMatrix, queryDistances);
-
-        // add entire domain if it updates
-        if (distance <= searchRadius + pivot._radius) {
-            if (pivot._childCount > 0) {
-                for (it2 = pivot._pivotDomain.begin(); it2 != pivot._pivotDomain.end(); it2++) {
-                    nextPivotList.push_back(&(*it2));
-                }
-            }
-        }
-    }
-
-    // do the same thing in the lower layer
-    recursiveSearch(nextPivotList, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, queryDistances);
+    // go down, recursive baby
+    recursiveSearch(pqueue, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, queryDistances);
 
     return;
 }
 
 
-void NNS::depthFirstSearch(const Pivot* pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
-    
-    // store the closest point
-    const Pivot* closestPivot;
-    float closestPivotDistance = HUGE_VAL;
+/**
+ * @brief Perform the recursive search
+ * 
+ * @param pqueue 
+ * @param queryIndex 
+ * @param index1 
+ * @param dmin 
+ * @param sparseMatrix 
+ * @param queryDistances 
+ */
+void NNS::recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, unsigned int &index1,
+                          float &dmin, SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
+    PriorityQueue nextQueue{}; 
 
-    // iterate through domain to find closest point
-    std::vector<Pivot>::const_iterator it1;
-    for (it1 = pivot->_pivotDomain.begin(); it1 != pivot->_pivotDomain.end(); it1++) {
-        const Pivot* childPivot = &(*it1);
-        float const distance = getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
-
-        // find the closest child
-        if (distance < closestPivotDistance) {
-            closestPivotDistance = distance;
-            closestPivot = childPivot;
-        }
-
-        // update dmin
-        if (distance < dmin) {
-            dmin = distance;
-            index1 = childPivot->_index;
-        }
-    }
-
-    // go down
-    if (closestPivot->_childCount > 0) {
-        depthFirstSearch(closestPivot, queryIndex, index1, dmin, sparseMatrix, queryDistances);
-    }
-
-    return;
-}
-
-
-void NNS::recursiveSearch(std::vector<const Pivot*> pivotList,  unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
-
-    // update dmin with all pivots in the list
-    std::vector<const Pivot*>::const_iterator it1;
-    for (it1 = pivotList.begin(); it1 != pivotList.end(); it1++) {
-        const Pivot* pivot = (*it1);
-        float const distance = getQueryDistance(queryIndex, pivot->_index, sparseMatrix, queryDistances);
-
-        // update active NN only if its not an HSP neighbor already
-        if (distance < dmin) {
-            dmin = distance;
-            index1 = pivot->_index;
-        }
-    }
-
-    // collect pivot domains
-    std::vector<const Pivot*> nextPivotList{};
+    // iterate through the remainder of the queue   
+    std::pair<float, const Pivot*> topOfQueue;
     std::vector<Pivot>::const_iterator it2;
-    for (it1 = pivotList.begin(); it1 != pivotList.end(); it1++) {
-        const Pivot* pivot = (*it1);
-        float const distance = getQueryDistance(queryIndex, pivot->_index, sparseMatrix, queryDistances);
+    while (!pqueue.empty()) {
+        topOfQueue = pqueue.top();
+        const Pivot* pivot = topOfQueue.second;
+        float distance1 = topOfQueue.first;
 
         // add entire domain if it updates
-        if (distance <= dmin + pivot->_radius) {
+        if (distance1 <= dmin + pivot->_radius) {
             if (pivot->_childCount > 0) {
                 for (it2 = pivot->_pivotDomain.begin(); it2 != pivot->_pivotDomain.end(); it2++) {
-                    nextPivotList.push_back(&(*it2));
+                    const Pivot* childPivot = &(*it2);
+                    float const distance2 = getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
+
+                    // update search radius
+                    if (distance2 < dmin) {
+                        dmin = distance2;
+                        index1 = childPivot->_index;
+                    }
+
+                    // if there are lower children
+                    if (childPivot->_childCount > 1) { // 1, only a parent of itself
+                        nextQueue.push(std::make_pair(distance2,childPivot));
+                    }
                 }
             }
         }
+
+        pqueue.pop();
     }
 
     // go down to next layer
-    if (nextPivotList.size() > 0) {
-        recursiveSearch(nextPivotList, queryIndex, index1, dmin, sparseMatrix, queryDistances);
+    if (nextQueue.size() > 0) {
+        recursiveSearch(nextQueue, queryIndex, index1, dmin, sparseMatrix, queryDistances);
     }
 
     return;
 }
+
 
 
 /**
@@ -211,79 +173,34 @@ float const NNS::getQueryDistance(unsigned int const queryIndex, unsigned int co
 }
 
 
-// /**
-//  * @brief Get NN by pivot index
-//  *
-//  * @param queryIndex
-//  * @param pivotLayer
-//  * @param sparseMatrix
-//  * @param nearestNeighbor
-//  */
-// void NNS::Search1(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
-//                  unsigned int &nearestNeighbor) {
-//     unsigned int const datasetSize = sparseMatrix._datasetSize;
+// void NNS::depthFirstSearch(const Pivot *pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
+//                            SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
+//     // store the closest point
+//     const Pivot *closestPivot;
+//     float closestPivotDistance = HUGE_VAL;
 
-//     // initializations for query
-//     float searchRadius = HUGE_VAL;
-//     std::vector<float> queryDistances{};
-//     queryDistances.resize(datasetSize, -1.0f);
-
-//     // define search radius as distance to closest pivot
-//     std::vector<Pivot>::const_iterator it1, it2;
-//     for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
-//         Pivot const &pivot = (*it1);
-//         float const distance_Qp = getQueryDistance(queryIndex, pivot._index, sparseMatrix, queryDistances);
-
-//         // get an estimate of the NN by only using pivots, defines search radius
-//         if (distance_Qp < searchRadius) {
-//             searchRadius = distance_Qp;
-//             nearestNeighbor = pivot._index;
-//         }
-//     }
-
-//     // find the closest point from those pivot domains within the search radius
-//     for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
-//         Pivot const &pivot = (*it1);
-//         recursiveSearch1(pivot, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, queryDistances);
-//     }
-
-//     return;
-// }
-
-
-// /**
-//  * @brief
-//  *
-//  * @param parentPivot
-//  * @param queryIndex
-//  * @param neighbors
-//  * @param index1
-//  * @param dmin
-//  * @param sparseMatrix
-//  * @param queryDistances
-//  */
-// void NNS::recursiveSearch1(Pivot const &parentPivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-//                           SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
-//     if (parentPivot._childCount <= 0) return;
-
-//     // iterate through pivot domain
+//     // iterate through domain to find closest point
 //     std::vector<Pivot>::const_iterator it1;
-//     for (it1 = parentPivot._pivotDomain.begin(); it1 != parentPivot._pivotDomain.end(); it1++) {
-//         Pivot const &childPivot = (*it1);
-//         float const distance_Qc = getQueryDistance(queryIndex, childPivot._index, sparseMatrix, queryDistances);
+//     for (it1 = pivot->_pivotDomain.begin(); it1 != pivot->_pivotDomain.end(); it1++) {
+//         const Pivot *childPivot = &(*it1);
+//         float const distance = getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
 
-//         // update active NN only if its not an HSP neighbor already
-//         if (distance_Qc < dmin) {
-//             dmin = distance_Qc;
-//             index1 = childPivot._index;
+//         // find the closest child
+//         if (distance < closestPivotDistance) {
+//             closestPivotDistance = distance;
+//             closestPivot = childPivot;
 //         }
 
-//         // check if domain can hold a closer point
-//         if (distance_Qc <= dmin + childPivot._maxChildDistance) {
-//             if (childPivot._childCount > 0) {
-//                 recursiveSearch1(childPivot, queryIndex, index1, dmin, sparseMatrix, queryDistances);
-//             }
+//         // update dmin
+//         if (distance < dmin) {
+//             dmin = distance;
+//             index1 = childPivot->_index;
 //         }
+//     }
+
+//     // go down
+//     if (closestPivot->_childCount > 0) {
+//         depthFirstSearch(closestPivot, queryIndex, index1, dmin, sparseMatrix, queryDistances);
 //     }
 
 //     return;
