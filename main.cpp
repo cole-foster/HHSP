@@ -17,7 +17,6 @@ void printSet(std::vector<unsigned int> const &set);
 int main(int argc, char **argv) {
     // printf("Begin Index Construction and Search... \n");
     CLI::App app{"Index Construction"};
-    std::string dataDirectory = "/users/cfoste18/scratch/sisap_data/";
     std::string dataset = "uniform";
     unsigned int dimension = 2;
     float cube_length = 1;
@@ -172,13 +171,14 @@ int main(int argc, char **argv) {
     //---
 
     // perform hsp search by pivot index
+    double temp_dist = 0;
     printf("HSP Search By PivotIndex: \n");
     std::vector<std::vector<unsigned int>> results_hsp_pivot{};
     results_hsp_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex]);
+        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex],temp_dist);
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -186,6 +186,7 @@ int main(int argc, char **argv) {
     double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
     printf("    * Time (ms): %.4f \n",time_hsp_pivot*1000);
     printf("    * Distances: %.2f \n",distances_hsp_pivot);
+    printSet(pivotsPerLayer);
 
     //---
     //                    Validate Correctness
@@ -216,7 +217,8 @@ int main(int argc, char **argv) {
     printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
     printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
     printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
-    printf("%u\n",hsp_correct);
+    printf("%u,",hsp_correct);
+    printf("%.2f\n",temp_dist/((double) testsetSize));
 
     printf("Done! Have a good day! \n");
     delete[] dataPointer;

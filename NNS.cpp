@@ -9,17 +9,17 @@
 
 namespace NNS {
 
-typedef std::priority_queue<std::pair<float, const Pivot*>, std::vector<std::pair<float, const Pivot*>>,
-                        std::greater<std::pair<float, const Pivot*>>> PriorityQueue;
+typedef std::priority_queue<std::pair<float, const Pivot *>, std::vector<std::pair<float, const Pivot *>>,
+                            std::greater<std::pair<float, const Pivot *>>>
+    PriorityQueue;
 
-void recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, unsigned int &index1,
-                     float &dmin, SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
+void recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, unsigned int &index1, float &dmin,
+                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
 
 // void depthFirstSearch(const Pivot *pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
 //                       SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
 
 }  // namespace NNS
-
 
 /**
  * @brief Get NN by pivot index
@@ -39,12 +39,12 @@ void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivots
     queryDistances.resize(datasetSize, -1.0f);
 
     // Define the search radius and create priority queue
-    PriorityQueue pqueue{}; // GOTTA USE A FASTER LIBRARY
+    PriorityQueue pqueue{};  // GOTTA USE A FASTER LIBRARY
     std::vector<Pivot>::const_iterator it1, it2;
     for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
         const Pivot *pivot = &(*it1);
         float const distance = getQueryDistance(queryIndex, pivot->_index, sparseMatrix, queryDistances);
-        pqueue.push(std::make_pair(distance,pivot));
+        pqueue.push(std::make_pair(distance, pivot));
 
         // get an estimate of the NN by only using pivots, defines search radius
         if (distance < searchRadius) {
@@ -59,35 +59,35 @@ void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivots
     return;
 }
 
-
 /**
  * @brief Perform the recursive search
- * 
- * @param pqueue 
- * @param queryIndex 
- * @param index1 
- * @param dmin 
- * @param sparseMatrix 
- * @param queryDistances 
+ *
+ * @param pqueue
+ * @param queryIndex
+ * @param index1
+ * @param dmin
+ * @param sparseMatrix
+ * @param queryDistances
  */
-void NNS::recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, unsigned int &index1,
-                          float &dmin, SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
-    PriorityQueue nextQueue{}; 
+void NNS::recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, unsigned int &index1, float &dmin,
+                          SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
+    PriorityQueue nextQueue{};
 
-    // iterate through the remainder of the queue   
-    std::pair<float, const Pivot*> topOfQueue;
+    // iterate through the remainder of the queue
+    std::pair<float, const Pivot *> topOfQueue;
     std::vector<Pivot>::const_iterator it2;
     while (!pqueue.empty()) {
         topOfQueue = pqueue.top();
-        const Pivot* pivot = topOfQueue.second;
+        const Pivot *pivot = topOfQueue.second;
         float distance1 = topOfQueue.first;
 
         // add entire domain if it updates
         if (distance1 <= dmin + pivot->_radius) {
             if (pivot->_childCount > 0) {
                 for (it2 = pivot->_pivotDomain.begin(); it2 != pivot->_pivotDomain.end(); it2++) {
-                    const Pivot* childPivot = &(*it2);
-                    float const distance2 = getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
+                    const Pivot *childPivot = &(*it2);
+                    float const distance2 =
+                        getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
 
                     // update search radius
                     if (distance2 < dmin) {
@@ -96,8 +96,8 @@ void NNS::recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, 
                     }
 
                     // if there are lower children
-                    if (childPivot->_childCount > 1) { // 1, only a parent of itself
-                        nextQueue.push(std::make_pair(distance2,childPivot));
+                    if (childPivot->_childCount >= 1) {  // 1, only a parent of itself
+                        nextQueue.push(std::make_pair(distance2, childPivot));
                     }
                 }
             }
@@ -113,8 +113,6 @@ void NNS::recursiveSearch(PriorityQueue& pqueue, unsigned int const queryIndex, 
 
     return;
 }
-
-
 
 /**
  * @brief Find NN by brute force
@@ -171,7 +169,6 @@ float const NNS::getQueryDistance(unsigned int const queryIndex, unsigned int co
     }
     return distance;
 }
-
 
 // void NNS::depthFirstSearch(const Pivot *pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
 //                            SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {

@@ -8,6 +8,8 @@ rather than a list of points:
 2. Active Point Validation: testing all active points against the HSP inequalities between the query and the new HSP 
 neighbor. 
 
+module load gcc/8.3 && module load cmake/3.15.4 && module load git/2.10.2
+
 
 #### Two-Layer GHSP Search
 The two-layer GHSP search algorithm uses a simple, 2-layer index of pivots. This can be thought of as a list of pivots, 

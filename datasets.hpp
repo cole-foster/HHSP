@@ -52,6 +52,8 @@ void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N,
     }
 }
 
+
+
 void clusterDataset(float*& dataPointer, unsigned int dimension, unsigned int& datasetSize, std::string data_directory) {
     std::string filename = std::string(data_directory).append("cluster_").append(std::to_string(dimension)).append("D_N-1638400_single.bin");
     printf("Cluster Filename: %s\n",filename.c_str());

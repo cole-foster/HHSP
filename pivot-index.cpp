@@ -172,7 +172,7 @@ bool recursivePivotDomainValidation(Pivot const& pivot, int const numberOfLayers
         }
 
         // if bottom layer, remove from list
-        if (child._level == numberOfLayers-1) {
+        if (child._level == numberOfLayers - 1) {
             // remove child from list, ensure not seen before
             std::vector<unsigned int>::iterator it3 = std::find(pointList.begin(), pointList.end(), child._index);
             if (it3 == pointList.end()) {

@@ -37,11 +37,9 @@ set(SOURCES sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
 
 # add scripts
 add_executable(main main.cpp ${HEADERS} ${SOURCES})
-target_include_directories(main PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
 install(TARGETS main)
 
 add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
 install(TARGETS opt)
 target_include_directories(opt PRIVATE ${NLOPT_DIRECTORIES})
 target_link_libraries(opt PRIVATE ${NLOPT})

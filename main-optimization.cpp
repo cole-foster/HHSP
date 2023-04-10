@@ -252,6 +252,7 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     double time_ps = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
 
     // perform GHSP search on the pivot-index
+    double temp_dist = 0;
     std::vector<std::vector<unsigned int>> neighbors{};
     neighbors.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
@@ -259,7 +260,7 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     // iterate through datasetSize+testsetSize+Q to get validation set
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
         GHSP::GHSP_Search(datasetSize + testsetSize + queryIndex, pivotsList, *sparseMatrix,
-                                    neighbors[queryIndex]);
+                                    neighbors[queryIndex],temp_dist);
     }
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -357,13 +358,14 @@ void fullRun(const std::vector<double> x, GHSP_Data& data) {
     double time_hsp_brute = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
 
     // perform GHSP search on the pivot-index
+    double temp_dist;
     std::vector<std::vector<unsigned int>> results_hsp_pivot{};
     results_hsp_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
     // iterate through datasetSize+testsetSize+Q to get validation set
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex]);
+        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex],temp_dist);
     }
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
