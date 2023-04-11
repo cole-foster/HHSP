@@ -11,7 +11,7 @@
 namespace GHSP {
 
 void GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const& pivotsList, SparseMatrix &sparseMatrix,
-                       std::vector<unsigned int> &neighbors, double& dist);
+                       std::vector<unsigned int> &neighbors);
 void HSP_Search(unsigned int const queryIndex, unsigned int const datasetSize, SparseMatrix &sparseMatrix,
          std::vector<unsigned int> &neighbors);
 

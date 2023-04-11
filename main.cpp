@@ -171,14 +171,13 @@ int main(int argc, char **argv) {
     //---
 
     // perform hsp search by pivot index
-    double temp_dist = 0;
     printf("HSP Search By PivotIndex: \n");
     std::vector<std::vector<unsigned int>> results_hsp_pivot{};
     results_hsp_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex],temp_dist);
+        GHSP::GHSP_Search(datasetSize + queryIndex, pivotsList, *sparseMatrix, results_hsp_pivot[queryIndex]);
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;

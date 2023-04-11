@@ -42,7 +42,7 @@ void recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_interme
  * @param neighbors
  */
 void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
-                       std::vector<unsigned int> &neighbors, double& dist) {
+                       std::vector<unsigned int> &neighbors) {
     neighbors.clear();
 
     // initialize query distance storage
@@ -124,11 +124,6 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
         std::vector<std::pair<const Pivot *, bool>> pivotsToAdd{};
         recursiveSearch(pqueue_active, pqueue_intermediate, pivotsToAdd, queryIndex, neighbors, index1, dmin, sparseMatrix);
         A.insert(A.end(), pivotsToAdd.begin(), pivotsToAdd.end());
-
-        //> temp
-        // dEnd = sparseMatrix._distanceComputationCount;
-        // printf("Q:%u, x1:%u, size: %u -> %u, distances: %llu\n",queryIndex, index1, start_size, A.size(), dEnd-dStart);
-        // if (count <= 1) dist += (double) (dEnd-dStart);
 
         if (dmin > 10000) break;  // large, magic number signaling no neighbor possible
         /**
