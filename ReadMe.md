@@ -8,6 +8,7 @@ rather than a list of points:
 2. Active Point Validation: testing all active points against the HSP inequalities between the query and the new HSP 
 neighbor. 
 
+interact -q batch -n 2 -m 16g -t 12:00:00
 module load gcc/8.3 && module load cmake/3.15.4 && module load git/2.10.2
 
 

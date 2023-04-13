@@ -7,11 +7,12 @@
 
 #include "sparse-matrix.hpp"
 #include "pivot.hpp"
+#include "animation.hpp"
 
 namespace GHSP {
 
 void GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const& pivotsList, SparseMatrix &sparseMatrix,
-                       std::vector<unsigned int> &neighbors);
+                       std::vector<unsigned int> &neighbors, Animation& anim);
 void HSP_Search(unsigned int const queryIndex, unsigned int const datasetSize, SparseMatrix &sparseMatrix,
          std::vector<unsigned int> &neighbors);
 

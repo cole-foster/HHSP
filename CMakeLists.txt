@@ -32,14 +32,17 @@ set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # all files
-set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot.hpp pivot-index.hpp NNS.hpp GHSP.hpp)
-set(SOURCES sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
+set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot.hpp pivot-index.hpp NNS.hpp GHSP.hpp animation.hpp)
+set(SOURCES datasets.cpp sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
 
 # add scripts
-add_executable(main main.cpp ${HEADERS} ${SOURCES})
-install(TARGETS main)
+# add_executable(main main.cpp ${HEADERS} ${SOURCES})
+# install(TARGETS main)
 
-add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-install(TARGETS opt)
-target_include_directories(opt PRIVATE ${NLOPT_DIRECTORIES})
-target_link_libraries(opt PRIVATE ${NLOPT})
+# add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
+# install(TARGETS opt)
+# target_include_directories(opt PRIVATE ${NLOPT_DIRECTORIES})
+# target_link_libraries(opt PRIVATE ${NLOPT})
+
+add_executable(animation main-animation.cpp ${HEADERS} ${SOURCES})
+install(TARGETS animation)

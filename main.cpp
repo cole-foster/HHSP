@@ -217,7 +217,6 @@ int main(int argc, char **argv) {
     printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
     printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
     printf("%u,",hsp_correct);
-    printf("%.2f\n",temp_dist/((double) testsetSize));
 
     printf("Done! Have a good day! \n");
     delete[] dataPointer;

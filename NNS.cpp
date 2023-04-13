@@ -14,12 +14,19 @@ typedef std::priority_queue<std::pair<float, const Pivot *>, std::vector<std::pa
     PriorityQueue;
 
 void recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                     SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
+                     SparseMatrix &sparseMatrix, Animation& anim);
 
 // void depthFirstSearch(const Pivot *pivot, unsigned int const queryIndex, unsigned int &index1, float &dmin,
 //                       SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
 
 }  // namespace NNS
+
+
+
+
+
+
+
 
 /**
  * @brief Get NN by pivot index
@@ -30,20 +37,23 @@ void recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, unsig
  * @param nearestNeighbor
  */
 void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
-                 unsigned int &nearestNeighbor) {
+                 unsigned int &nearestNeighbor, Animation& anim) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
+    sparseMatrix._addNewReference(queryIndex);
+    anim.currentLayer = 0;
+    anim.timestamp = 0;
 
     // initializations for query
     float searchRadius = HUGE_VAL;
-    std::vector<float> queryDistances{};
-    queryDistances.resize(datasetSize, -1.0f);
 
     // Define the search radius and create priority queue
     PriorityQueue pqueue{};  // GOTTA USE A FASTER LIBRARY
     std::vector<Pivot>::const_iterator it1, it2;
     for (it1 = pivotsList.begin(); it1 != pivotsList.end(); it1++) {
         const Pivot *pivot = &(*it1);
-        float const distance = getQueryDistance(queryIndex, pivot->_index, sparseMatrix, queryDistances);
+        float const distance = getDistance(queryIndex, pivot->_index, sparseMatrix);
+        anim.timestamp++;
+        anim.add_nns_point(pivot->_index, anim.currentLayer);
         pqueue.push(std::make_pair(distance, pivot));
 
         // get an estimate of the NN by only using pivots, defines search radius
@@ -54,7 +64,7 @@ void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivots
     }
 
     // go down, recursive baby
-    recursiveSearch(pqueue, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, queryDistances);
+    recursiveSearch(pqueue, queryIndex, nearestNeighbor, searchRadius, sparseMatrix, anim);
 
     return;
 }
@@ -70,7 +80,8 @@ void NNS::Search(unsigned int const queryIndex, std::vector<Pivot> const &pivots
  * @param queryDistances
  */
 void NNS::recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, unsigned int &index1, float &dmin,
-                          SparseMatrix &sparseMatrix, std::vector<float> &queryDistances) {
+                          SparseMatrix &sparseMatrix, Animation& anim) {
+    anim.currentLayer++;
     PriorityQueue nextQueue{};
 
     // iterate through the remainder of the queue
@@ -87,7 +98,10 @@ void NNS::recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, 
                 for (it2 = pivot->_pivotDomain.begin(); it2 != pivot->_pivotDomain.end(); it2++) {
                     const Pivot *childPivot = &(*it2);
                     float const distance2 =
-                        getQueryDistance(queryIndex, childPivot->_index, sparseMatrix, queryDistances);
+                        getDistance(queryIndex, childPivot->_index, sparseMatrix);
+                    anim.timestamp++;
+                    anim.add_nns_point(childPivot->_index, anim.currentLayer);
+
 
                     // update search radius
                     if (distance2 < dmin) {
@@ -108,7 +122,7 @@ void NNS::recursiveSearch(PriorityQueue &pqueue, unsigned int const queryIndex, 
 
     // go down to next layer
     if (nextQueue.size() > 0) {
-        recursiveSearch(nextQueue, queryIndex, index1, dmin, sparseMatrix, queryDistances);
+        recursiveSearch(nextQueue, queryIndex, index1, dmin, sparseMatrix, anim);
     }
 
     return;
@@ -157,6 +171,13 @@ void NNS::printSet(std::vector<unsigned int> const &set) {
 // compute distance using sparse matrix
 float const NNS::computeDistance(unsigned int const index1, unsigned int const index2, SparseMatrix &sparseMatrix) {
     return sparseMatrix._computeDistance(index1, index2);
+}
+
+
+
+// compute distance using sparse matrix
+float const NNS::getDistance(unsigned int const index1, unsigned int const index2, SparseMatrix &sparseMatrix) {
+    return sparseMatrix._getDistance(index1, index2);
 }
 
 // get or retrieve query distnace

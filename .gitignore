@@ -3,6 +3,7 @@ slurms/
 old/
 build/
 bin/
+results/
 .vscode/
 test.sh
 run_batch

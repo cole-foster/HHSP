@@ -20,7 +20,7 @@ int validatePivot(Pivot const &pivot, unsigned int const queryIndex, std::vector
 
 void recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_intermediate, std::vector<std::pair<const Pivot *, bool>> &pivotsToAdd,
                      unsigned int const queryIndex, std::vector<unsigned int> const &neighbors, unsigned int &index1,
-                     float &dmin, SparseMatrix &sparseMatrix);
+                     float &dmin, SparseMatrix &sparseMatrix, Animation& anim);
 
 // void DepthFirstSearch(const Pivot *pivot, bool flag_intermediate, unsigned int const queryIndex,
 //                       std::vector<unsigned int> const &neighbors, unsigned int &index1, float &dmin,
@@ -33,6 +33,20 @@ void recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_interme
 //                         SparseMatrix &sparseMatrix, std::vector<float> &queryDistances);
 }  // namespace GHSP
 
+
+void animation_add_domain_recursive(const Pivot* parentPivot, int outcome, Animation& anim) {
+    std::vector<Pivot>::const_iterator it1;
+    for (it1 = parentPivot->_pivotDomain.begin(); it1 != parentPivot->_pivotDomain.end(); it1++) {
+        const Pivot* pivot = &(*it1);
+        anim.add_hsp_point(pivot->_level, pivot->_index, outcome);
+        if (pivot->_childCount > 0) {
+            animation_add_domain_recursive(pivot, outcome, anim);
+        }
+    }
+    return;
+}
+
+
 /**
  * @brief Performing GHSP search on a recursively-defined pivot index
  *
@@ -42,7 +56,7 @@ void recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_interme
  * @param neighbors
  */
 void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &pivotsList, SparseMatrix &sparseMatrix,
-                       std::vector<unsigned int> &neighbors) {
+                       std::vector<unsigned int> &neighbors, Animation& anim) {
     neighbors.clear();
 
     // initialize query distance storage
@@ -58,14 +72,15 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
     }
 
     // find the HSP neighbors in a loop
-    int count = 0;
+    anim.iteration = 0;
     while (A.size() > 0) {
-        count++;
         unsigned int index1;  // next hsp neighbor
         float dmin = HUGE_VAL;
 
-        // unsigned long long int dStart, dEnd;
-        // dStart = sparseMatrix._distanceComputationCount;
+        // animation params
+        anim.iteration++;
+        anim.timestamp_search = 0;
+        anim.timestamp_hsp = 0;
         
         /**
          * =================================================================================
@@ -80,6 +95,10 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
             const Pivot *pivot = (*it1).first;
             bool flag_intermediate = (*it1).second;
             float const distance = getDistance(queryIndex, pivot->_index, sparseMatrix);
+
+            // animation: computed distance on search
+            anim.add_hsp_search_point(pivot->_level,pivot->_index);
+            anim.timestamp_search++;
 
             // validate against existing hsp neighbors
             bool flag_valid = true;
@@ -111,6 +130,9 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
                 if (flag_intermediate) {
                     pqueue_intermediate.push(std::make_tuple(distance, pivot, flag_intermediate));
                     it1 = A.erase(it1);  // intermediate points must have their domains examined. Remove from list.
+
+                    // animation: pivot intermediate, domain searched. new color.
+                    anim.add_hsp_point(pivot->_level, pivot->_index, 3); // no increment? Batch?
                 } else {
                     pqueue_active.push(std::make_tuple(distance, pivot, flag_intermediate));
                     ++it1;
@@ -122,7 +144,7 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
 
         //> Perform the top-down recursive search for nearest point
         std::vector<std::pair<const Pivot *, bool>> pivotsToAdd{};
-        recursiveSearch(pqueue_active, pqueue_intermediate, pivotsToAdd, queryIndex, neighbors, index1, dmin, sparseMatrix);
+        recursiveSearch(pqueue_active, pqueue_intermediate, pivotsToAdd, queryIndex, neighbors, index1, dmin, sparseMatrix, anim);
         A.insert(A.end(), pivotsToAdd.begin(), pivotsToAdd.end());
 
         if (dmin > 10000) break;  // large, magic number signaling no neighbor possible
@@ -135,7 +157,7 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
         float const distance_Q1 = dmin;
         neighbors.push_back(x1);
         sparseMatrix._addNewReference(x1);
-        
+        anim.animation_hsp_neighbors.push_back(x1);
 
         // iterate through each pivot in the list
         for (it1 = A.begin(); it1 != A.end(); /* iterate in loop */) {
@@ -149,12 +171,28 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
                 flag_intermediate = true;
                 ++it1;
 
+                // if (!flag_intermediate) {
+                anim.timestamp_hsp++;
+                anim.add_hsp_point(p2._level, p2._index, 2);
+                if (p2._childCount > 0) {
+                    animation_add_domain_recursive(&p2, 2,anim);
+                }
+                // }
+
             } else {
                 float const distance_12 = getDistance(x1, p2._index, sparseMatrix);
 
                 // Case 1: Entire domain invalidated
                 if (distance_Q2 * distance_Q2 - distance_12 * distance_12 > 2 * radius * distance_Q1 &&
                     distance_Q1 < distance_Q2 - radius) {
+
+                    // update animation: 1 is for eliminated
+                    anim.timestamp_hsp++;
+                    anim.add_hsp_point(p2._level, p2._index, 1);
+                    if (p2._childCount > 0) {
+                        animation_add_domain_recursive(&p2, 1, anim);
+                    }
+
                     it1 = A.erase(it1);
                 }
                 // Case 2: Entire domain safe
@@ -165,6 +203,14 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
                 else {
                     flag_intermediate = true;
                     ++it1;
+
+                    // if (!flag_intermediate) {
+                    anim.timestamp_hsp++;
+                    anim.add_hsp_point(p2._level, p2._index, 2);
+                    if (p2._childCount > 0) {
+                        animation_add_domain_recursive(&p2, 2, anim);
+                    }
+                    // }
                 }
             }
         }
@@ -189,7 +235,7 @@ void GHSP::GHSP_Search(unsigned int const queryIndex, std::vector<Pivot> const &
  */
 void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_intermediate, std::vector<std::pair<const Pivot *, bool>> &pivotsToAdd,
                            unsigned int const queryIndex, std::vector<unsigned int> const &neighbors,
-                           unsigned int &index1, float &dmin, SparseMatrix &sparseMatrix) {
+                           unsigned int &index1, float &dmin, SparseMatrix &sparseMatrix, Animation& anim) {
     PriorityQueue nextQueue_active, nextQueue_intermediate;
 
     //> Iterate through activeQueue first
@@ -209,6 +255,10 @@ void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_i
                 const Pivot *pivot = &(*it2);
                 float const distance2 = getDistance(queryIndex, pivot->_index, sparseMatrix);
                 float const pivotRadius = pivot->_radius;
+
+                // animation: computed distance on search
+                anim.add_hsp_search_point(pivot->_level,pivot->_index);
+                anim.timestamp_search++;
 
                 // update dmin if not already a neighbor
                 if (distance2 < dmin) {
@@ -240,6 +290,10 @@ void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_i
                 const Pivot *pivot = &(*it2);
                 float const distance2 = getDistance(queryIndex, pivot->_index, sparseMatrix);
                 float const pivotRadius = pivot->_radius;
+
+                // animation: computed distance on search
+                anim.add_hsp_search_point(pivot->_level,pivot->_index);
+                anim.timestamp_search++;
                 
                 // INSERT EXISTING NEIGHBOR CHECK
 
@@ -252,10 +306,24 @@ void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_i
                 bool flag_intermediate;
                 if (flag_outcome == 0) {  // entire domain safe
                     flag_intermediate = false;
+
                 } else if (flag_outcome == 1) {  // entire domain pivot is eliminated!
+
+                    // update animation: 1 is for eliminated. no change in timestamp
+                    anim.add_hsp_point(pivot->_level, pivot->_index, 1);
+                    if (pivot->_childCount > 0) {
+                        animation_add_domain_recursive(pivot, 1, anim);
+                    }
+
                     continue;
                 } else if (flag_outcome == 2) {  // pivot in intermediate region
                     flag_intermediate = true;
+
+                    // update animation: 2 is for intermediate. no change in timestamp
+                    anim.add_hsp_point(pivot->_level, pivot->_index, 2);
+                    if (pivot->_childCount > 0) {
+                        animation_add_domain_recursive(pivot, 2, anim);
+                    }
                 }
 
                 // update dmin with childIndex if valid/not a neighbor
@@ -272,6 +340,9 @@ void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_i
                 if (distance2 <= dmin + pivotRadius && pivot->_childCount > 0) {
                     if (flag_intermediate) {
                         nextQueue_intermediate.push(std::make_tuple(distance2, pivot, flag_intermediate));
+                        
+                        // animation: pivot intermediate, domain searched. new color.
+                        anim.add_hsp_point(pivot->_level, pivot->_index, 3); // no increment? Batch?
                     } else {
                         nextQueue_active.push(std::make_tuple(distance2, pivot, flag_intermediate));
                     }
@@ -287,12 +358,15 @@ void GHSP::recursiveSearch(PriorityQueue &pqueue_active, PriorityQueue &pqueue_i
             }
         } else {
             pivotsToAdd.emplace_back(parentPivot, flag_parentIntermediate);
+
+            // animation: pivot intermediate, but domain NOT searched. REVERT!
+            anim.add_hsp_point(parentPivot->_level, parentPivot->_index, 2); // no increment? Batch?
         }
     }
 
     // go down to next layer
     if (nextQueue_active.size() > 0 || nextQueue_intermediate.size() > 0) {
-        recursiveSearch(nextQueue_active, nextQueue_intermediate, pivotsToAdd, queryIndex, neighbors, index1, dmin, sparseMatrix);
+        recursiveSearch(nextQueue_active, nextQueue_intermediate, pivotsToAdd, queryIndex, neighbors, index1, dmin, sparseMatrix, anim);
     }
 
     return;
