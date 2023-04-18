@@ -65,6 +65,9 @@ struct PivotLayer {
     //  - map from each index to its parent
     std::shared_ptr < tsl::sparse_map<unsigned int, unsigned int>> parentIndices =
         std::make_shared<tsl::sparse_map<unsigned int, unsigned int>> ();
+    inline unsigned int const& get_parentIndex(unsigned int const pivotIndex) const {
+        return (*parentIndices)[pivotIndex];
+    }
 
     //  - map from each index to its list of children
     std::shared_ptr < tsl::sparse_map<unsigned int, float>> maxChildDistance =

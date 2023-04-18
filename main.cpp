@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
     float cube_length = 1;
     unsigned int datasetSize = 1000;
     unsigned int testsetSize = 100;
-    float radius = 0;
+    std::vector<float> radiusVector{};
     int numThreads = 1;
     bool verbose = true;
     app.add_option("-d,--dataset", dataset, "dataset");
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
     app.add_option("-N,--datasetSize", datasetSize, "Dataset Size");
     app.add_option("-T,--testsetSize", testsetSize, "Testset Size");
     app.add_option("-n,--numThreads", numThreads, "Number of Threads");
-    app.add_option("-r,--radius", radius, "radius for the constant radius pivot index");
+    app.add_option("-r,--radius", radiusVector, "radius for the constant radius pivot index");
     app.add_option("-v,--verbose", verbose, "Show hRNG Statistics During Eval");
     CLI11_PARSE(app, argc, argv);
 
@@ -63,24 +63,33 @@ int main(int argc, char **argv) {
     // create sparsematrix, really just holds datapointer and computes distances
     std::shared_ptr<SparseMatrix> sparseMatrix = std::make_shared<SparseMatrix>(dataPointer, datasetSize+testsetSize, dimension);
     sparseMatrix->_datasetSize = datasetSize;
+    int numberOfLayers = radiusVector.size()+1;
 
     // create pivot index
     printf("Pivot Selection: \n");
     printf("    * N=%u\n",datasetSize);
     printf("    * D=%u\n",dimension);
-    printf("    * r=%.4f\n",radius);
-    PivotLayer pivotLayer;    
+    std::vector<PivotLayer> pivotLayers;    
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    PivotIndex::Greedy_2L(radius, *sparseMatrix, pivotLayer);
+    if (numberOfLayers == 2) {
+        PivotIndex::Greedy_2L(radiusVector[0], *sparseMatrix, pivotLayers);
+    } else if (numberOfLayers == 3) {
+        PivotIndex::Greedy_3L(radiusVector, *sparseMatrix, pivotLayers);
+    }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
     unsigned long long int distances_ps = (dEnd - dStart);
     double time_ps = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-    printf("    * |P|=%u\n",pivotLayer.pivotIndices->size());    
+    printf("    * |P|=%u\n",pivotLayers[0].pivotIndices->size());    
     printf("    * PS Distances: %llu \n",distances_ps);
     printf("    * PS Time (s): %.4f \n",time_ps);
-    // bool success = PivotSelection::validatePivotSelection(pivotLayer,*sparseMatrix);
+    // bool success = false;
+    // // if (numberOfLayers == 2) {
+    // //     bool success = PivotSelection::validatePivotSelection(pivotLayer,sparseMatrix);
+    // if (numberOfLayers == 3) {
+    //     success = PivotIndex::validatePivotSelection_3L(pivotLayers, *sparseMatrix);
+    // }
     // printf("    * Minimal Coverage?: %u\n\n",success);
 
     // perform nns time for all pivots, get average results
@@ -105,8 +114,14 @@ int main(int argc, char **argv) {
     results_nns_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        NNS::NNS_2L(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_nns_pivot[queryIndex]);
+    if (numberOfLayers == 2) {
+        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+            NNS::NNS_2L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, results_nns_pivot[queryIndex]);
+        }
+    } else if (numberOfLayers == 3) {
+        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+            NNS::NNS_3L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, results_nns_pivot[queryIndex]);
+        }
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -148,10 +163,16 @@ int main(int argc, char **argv) {
     std::vector<std::vector<unsigned int>> results_hsp_pivot{};
     results_hsp_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
-    tStart = std::chrono::high_resolution_clock::now();\
-    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_2L(datasetSize + queryIndex, pivotLayer, *sparseMatrix, results_hsp_pivot[queryIndex]);
-        // break;
+    tStart = std::chrono::high_resolution_clock::now();
+    if (numberOfLayers == 2) {
+        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+            GHSP::GHSP_2L(datasetSize + queryIndex, pivotLayers[0], *sparseMatrix, results_hsp_pivot[queryIndex]);
+        }
+    } else if (numberOfLayers == 3) {
+        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+            GHSP::GHSP_3L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, results_hsp_pivot[queryIndex]);
+            // break;
+        }
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -167,23 +188,23 @@ int main(int argc, char **argv) {
         ave_hsp += (double) results_hsp_bf[queryIndex].size();
         if (results_hsp_bf[queryIndex] != results_hsp_pivot[queryIndex]) {
             hsp_correct = false;
-            // printf("Error: Pivot NNS does not match GT!\n");
-            // printf("Q:%u,\n",queryIndex);
-            // printf("GT: "); printSet(results_hsp_bf[queryIndex]);
-            // printf("PI: "); printSet(results_hsp_pivot[queryIndex]);
-            // break;
+            printf("Error: Pivot NNS does not match GT!\n");
+            printf("Q:%u,\n",queryIndex);
+            printf("GT: "); printSet(results_hsp_bf[queryIndex]);
+            printf("PI: "); printSet(results_hsp_pivot[queryIndex]);
+            break;
         }
     }
     printf("    * Correct?: %u\n\n",hsp_correct);
     ave_hsp /= (double) testsetSize;
 
     printf("D,N,r,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct, Ave HSP\n");
-    printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());
+    printf("%u,%u,%.6f,%u,",dimension,datasetSize,radiusVector[0],pivotLayers[0].pivotIndices->size());
     printf("%llu,%.4f,",distances_ps,time_ps);
     printf("%.2f,%.4f,",distances_nns_brute,time_nns_brute*1000);
     printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
     printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
-    // printf("-,-,");
+    printf("-,-,");
     printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
     printf("%u,",hsp_correct);
     // printf("-,");

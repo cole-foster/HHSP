@@ -12,22 +12,140 @@ namespace NNS {
     void printSet(std::vector<unsigned int> const &set);
 };
 
+/**
+ * ==============================================================================
+ *
+ *                                  3-Layer
+ *
+ * ==============================================================================
+ */
 
 
 /**
  * @brief Get NN by pivot index
  *
  * @param queryIndex
- * @param pivotLayer
+ * @param pivotLayers
  * @param sparseMatrix
  * @param nearestNeighbor
  */
-void NNS::NNS_2L(unsigned int const queryIndex, PivotLayer &pivotLayer, SparseMatrix &sparseMatrix,
+void NNS::NNS_3L(unsigned int const queryIndex, std::vector<PivotLayer> &pivotLayers, SparseMatrix &sparseMatrix,
                     unsigned int &nearestNeighbor) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
     sparseMatrix._clear(); // remove all stored distances
     sparseMatrix._addNewReference(queryIndex); // add vector for query distance storage
-    tsl::sparse_set<unsigned int> const &pivotIndices = *pivotLayer.get_pivotIndices_ptr();
+    tsl::sparse_set<unsigned int> const &pivotIndices = *pivotLayers[0].get_pivotIndices_ptr();
+    float dmin = HUGE_VAL;
+
+    PriorityQueue Q1, Q2;
+    std::pair<float, unsigned int> topOfQueue;
+
+    //> 1. Iterate Through Top Layer Pivots To Constrain Search Radius, Create Priority Queue
+    tsl::sparse_set<unsigned int>::const_iterator it1;
+    for (it1 = pivotIndices.begin(); it1 != pivotIndices.end(); it1++) {
+        unsigned int const pivotIndex1 = (*it1);
+        float const distance_Q1 = getDistance(queryIndex, pivotIndex1, sparseMatrix);
+        float const radius1 = pivotLayers[0].get_maxChildDistance(pivotIndex1); 
+
+        // get an estimate of the NN by only using pivots, defines search radius
+        if (distance_Q1 < dmin) {
+            dmin = distance_Q1;
+            nearestNeighbor = pivotIndex1;
+        }
+
+        // add to queue if it may contain a closer point
+        if (distance_Q1 <= dmin + radius1) {
+            Q1.push(std::make_pair(distance_Q1,pivotIndex1));
+        }
+    }
+
+    //> 2. Search Domains of Top Layer Pivots
+    while (Q1.size() > 0) {
+        topOfQueue = Q1.top();
+        Q1.pop();
+        unsigned int const pivotIndex1 = topOfQueue.second;
+        float const distance_Q1 = topOfQueue.first;
+        float const radius1 = pivotLayers[0].get_maxChildDistance(pivotIndex1);
+
+        // Can this pivot contain a closer pivot in the second layer?
+        if (distance_Q1 <= dmin + radius1) {
+            std::vector<unsigned int> const &pivotDomain = pivotLayers[0].get_pivotChildren(pivotIndex1);
+
+            // Iterate through the pivot domain on second layer
+            std::vector<unsigned int>::const_iterator it2;
+            for (it2 = pivotDomain.begin(); it2 != pivotDomain.end(); it2++) {
+                unsigned int const pivotIndex2 = (*it2);
+                float const distance_Q2 = getDistance(queryIndex, pivotIndex2, sparseMatrix);
+                float const radius2 = pivotLayers[1].get_maxChildDistance(pivotIndex2);
+
+                // Get an estimate of the NN by only using pivots, defines search radius
+                if (distance_Q2 < dmin) {
+                    dmin = distance_Q2;
+                    nearestNeighbor = pivotIndex2;
+                }
+
+                // Add the domain if it may contain a closer point
+                if (distance_Q2 <= dmin + radius2) {
+                    Q2.push(std::make_pair(distance_Q2, pivotIndex2));
+                }
+            }
+        }
+    }
+
+    //> 3. Search Domains of Second Layer Pivots
+    while (Q2.size() > 0) {
+        topOfQueue = Q2.top();
+        Q2.pop();
+        unsigned int const pivotIndex2 = topOfQueue.second;
+        float const distance_Q2 = topOfQueue.first;
+        float const radius2 = pivotLayers[1].get_maxChildDistance(pivotIndex2);
+
+        // Can this pivot contain a closer pivot in the second layer?
+        if (distance_Q2 <= dmin + radius2) {
+            std::vector<unsigned int> const &pivotDomain = pivotLayers[1].get_pivotChildren(pivotIndex2);
+
+            // iterate through the domain
+            std::vector<unsigned int>::const_iterator it3;
+            for (it3 = pivotDomain.begin(); it3 != pivotDomain.end(); it3++) {
+                unsigned int const pivotIndex3 = (*it3);
+                float const distance_Q3 = getDistance(queryIndex, pivotIndex3, sparseMatrix);
+
+                // Update dmin
+                if (distance_Q3 < dmin) {
+                    dmin = distance_Q3;
+                    nearestNeighbor = pivotIndex3;
+                }
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+/**
+ * ==============================================================================
+ *
+ *                                  2-Layer
+ *
+ * ==============================================================================
+ */
+
+/**
+ * @brief Get NN by a 2-Layer Pivot Index
+ *
+ * @param queryIndex
+ * @param pivotLayers
+ * @param sparseMatrix
+ * @param nearestNeighbor
+ */
+void NNS::NNS_2L(unsigned int const queryIndex, std::vector<PivotLayer>& pivotLayers, SparseMatrix &sparseMatrix,
+                    unsigned int &nearestNeighbor) {
+    unsigned int const datasetSize = sparseMatrix._datasetSize;
+    sparseMatrix._clear(); // remove all stored distances
+    sparseMatrix._addNewReference(queryIndex); // add vector for query distance storage
+    tsl::sparse_set<unsigned int> const &pivotIndices = *pivotLayers[0].get_pivotIndices_ptr();
 
     // define search radius as distance to closest pivot
     float searchRadius = HUGE_VAL;
@@ -53,11 +171,11 @@ void NNS::NNS_2L(unsigned int const queryIndex, PivotLayer &pivotLayer, SparseMa
         topPivotsQueue.pop();
         unsigned int const pivotIndex = topOfQueue.second;
         float const distance_Qp = topOfQueue.first;
-        float const radius = pivotLayer.get_maxChildDistance(pivotIndex);
+        float const radius = pivotLayers[0].get_maxChildDistance(pivotIndex);
 
         // search the pivot domain
         if (distance_Qp <= searchRadius + radius) {
-            std::vector<unsigned int> const &pivotDomain = pivotLayer.get_pivotChildren(pivotIndex);
+            std::vector<unsigned int> const &pivotDomain = pivotLayers[0].get_pivotChildren(pivotIndex);
             for (it2 = pivotDomain.begin(); it2 != pivotDomain.end(); it2++) {
                 unsigned int const childIndex = (*it2);
                 float const distance_Qc = getDistance(queryIndex, childIndex, sparseMatrix);
@@ -73,6 +191,8 @@ void NNS::NNS_2L(unsigned int const queryIndex, PivotLayer &pivotLayer, SparseMa
 
     return;
 }
+
+
 
 
 
