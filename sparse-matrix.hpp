@@ -26,6 +26,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 // 01-24-2022
 
 #include <cstddef>
+#include <tsl/sparse_map.h>
 
 
 /**
@@ -38,11 +39,19 @@ class SparseMatrix {
     SparseMatrix(float *const &dataPointer, unsigned int const datasetSize, unsigned int const dimension);
     ~SparseMatrix(){};
     float const _computeDistance(unsigned int const index1, unsigned int const index2);
+    float const _getDistance(unsigned int const index1, unsigned int const index2);
+    void _addNewReference(unsigned int index);
+    inline void _clear() {_distanceMatrix.clear();}
 
     float *_dataPointer = NULL;
     unsigned int _datasetSize = 0;
     unsigned int _dimension = 0;
     unsigned long long int _distanceComputationCount = 0;
+
+  private:
+    // distance computation array
+    tsl::sparse_map<unsigned int, std::vector<float>> _distanceMatrix{};
+
     
 };
 

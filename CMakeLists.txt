@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(hRNG
+project(GHSP
         VERSION 1.0
         LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
@@ -21,14 +21,16 @@ set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
 # all files
-set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot-layer.hpp pivot-selection.hpp GHSP.hpp)
-set(SOURCES sparse-matrix.cpp pivot-selection.cpp GHSP.cpp)
+set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot-layer.hpp pivot-index.hpp NNS.hpp GHSP.hpp)
+set(SOURCES sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
+add_library(src ${HEADERS} ${SOURCES})
+target_include_directories(src PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
 
 # add scripts
-add_executable(main main.cpp ${HEADERS} ${SOURCES})
-target_include_directories(main PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
+add_executable(main main.cpp)
+target_link_libraries(main src)
 install(TARGETS main)
 
-add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
-install(TARGETS opt)
+# add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
+# target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
+# install(TARGETS opt)

@@ -21,12 +21,14 @@ int main(int argc, char **argv) {
     std::string dataDirectory = "/users/cfoste18/scratch/sisap_data/";
     std::string dataset = "uniform";
     unsigned int dimension = 2;
+    float cube_length = 1;
     unsigned int datasetSize = 1000;
     unsigned int testsetSize = 100;
     int numThreads = 1;
     bool verbose = true;
     app.add_option("-d,--dataset", dataset, "dataset");
     app.add_option("-D,--dimension", dimension, "Dimension");
+    app.add_option("-c,--cube_length", cube_length, "cube_length");
     app.add_option("-N,--datasetSize", datasetSize, "Dataset Size");
     app.add_option("-T,--testsetSize", testsetSize, "Testset Size");
     app.add_option("-n,--numThreads", numThreads, "Number of Threads");
@@ -45,7 +47,20 @@ int main(int argc, char **argv) {
     // dataset: 0...datsetSize-1, queryset: datasetSize-datasetSize+testsetSize
     float *dataPointer = NULL;
     if (dataset == "uniform") {
-        Datasets::uniformDataset(dataPointer, dimension, datasetSize + testsetSize, 3);
+        Datasets::uniformDataset(dataPointer, dimension, datasetSize + testsetSize, cube_length, 3);
+    } else if (dataset == "sphere") {
+        Datasets::sphericalDistribution(dataPointer, dimension, datasetSize + testsetSize, 1, 3);
+    } else if (dataset == "SIFT") {
+        unsigned int startSize = datasetSize;
+        Datasets::SIFT1M(dataPointer, dimension, datasetSize);
+        Datasets::datasetShuffle(dataPointer, dimension, datasetSize);
+        printf("SIFT Dataset: N=%u, D=%u\n",datasetSize, dimension);
+        if (startSize < datasetSize - testsetSize) {
+            datasetSize = startSize;   
+        } else {
+            printf("Not enough data. Requested N=%u points with T=%u queries, there is only %u\n",startSize, testsetSize, datasetSize);
+            datasetSize = datasetSize - testsetSize;
+        }
     } else {
         printf("Unrecognized dataset: %s\n", dataset.c_str());
         return 0;
@@ -131,23 +146,37 @@ double functionEval(float const radius, SparseMatrix& sparseMatrix, unsigned int
     unsigned long long int distances_ps = (dEnd - dStart);
     double time_ps = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count();
 
+    // perform nns by index
+    unsigned int nns_neighbor;
+    dStart = sparseMatrix._distanceComputationCount;
+    tStart = std::chrono::high_resolution_clock::now();
+    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        GHSP::pivotNNS(datasetSize + queryIndex, pivotLayer, sparseMatrix, nns_neighbor);
+    }
+    tEnd= std::chrono::high_resolution_clock::now();
+    dEnd = sparseMatrix._distanceComputationCount;
+    double distances_nns_pivot= (dEnd - dStart)/((double)testsetSize);
+    double time_nns_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
+
     // perform hsp search by pivot index
+    double ave_neighbors = 0;
     std::vector<unsigned int> neighbors{};
     dStart = sparseMatrix._distanceComputationCount;
-    tStart = std::chrono::high_resolution_clock::now();\
+    tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
         GHSP::GHSP_Search(datasetSize + queryIndex, pivotLayer, sparseMatrix, neighbors);
+        ave_neighbors += (double) neighbors.size();
     }
     tEnd= std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix._distanceComputationCount;
     double distances_hsp_pivot = (dEnd - dStart)/((double)testsetSize);
     double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
-
     
     printf("%u,%u,%.6f,%u,",dimension,datasetSize,radius,pivotLayer.pivotIndices->size());
     printf("%llu,%.4f,",distances_ps,time_ps);
-    printf("%.2f,%.4f\n",distances_hsp_pivot,time_hsp_pivot*1000);
-    return distances_hsp_pivot;
+    printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
+    printf("%.2f,%.4f,%.2f\n",distances_hsp_pivot,time_hsp_pivot*1000, ave_neighbors / ((double) testsetSize));
+    return distances_nns_pivot; //distances_hsp_pivot;
 }
 
 
@@ -220,8 +249,10 @@ void fullRun(float const radius, SparseMatrix& sparseMatrix, unsigned int const 
     double time_hsp_pivot = std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double) testsetSize);
 
     // ensure correctness
+    double ave_deg = 0;
     bool hsp_correct = true;
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        ave_deg += (double) results_hsp_bf[queryIndex].size();
         if (results_hsp_bf[queryIndex] != results_hsp_pivot[queryIndex]) {
             hsp_correct = false;
             break;
@@ -235,7 +266,8 @@ void fullRun(float const radius, SparseMatrix& sparseMatrix, unsigned int const 
     printf("%.2f,%.4f,",distances_nns_pivot,time_nns_pivot*1000);
     printf("%.2f,%.4f,",distances_hsp_brute,time_hsp_brute*1000);
     printf("%.2f,%.4f,",distances_hsp_pivot,time_hsp_pivot*1000);
-    printf("%u\n",hsp_correct);
+    printf("%u,",hsp_correct);
+    printf("%.2f\n",ave_deg/((double)testsetSize));
 
     return;
 }

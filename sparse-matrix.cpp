@@ -47,3 +47,42 @@ float const SparseMatrix::_computeDistance(unsigned int const index1, unsigned i
 
     return std::sqrt(distance);
 }
+
+/**
+ * @brief Special Storage of Distance Computations
+ * 
+ * @param index 
+ */
+void SparseMatrix::_addNewReference(unsigned int index) {
+    std::vector<float> new_vec(_datasetSize,-1);
+    _distanceMatrix.insert({index,new_vec});
+}
+
+/**
+ * @brief compute distance between two indices
+ * 
+ * @param index1 
+ * @param index2 
+ * @return float const 
+ */
+float const SparseMatrix::_getDistance(unsigned int const index1, unsigned int const index2) {
+    
+    // make sure this vector is in the map. if not, just compute and leave. 
+    // COMMENT THIS OUT: INEFFICIENT, ONLY CALL WHEN IT IS IN THE MAP
+    // tsl::sparse_map<unsigned int, std::vector<float>>::const_iterator it1;
+    // it1 = _distanceMatrix.find(index1);
+    // if (it1 == _distanceMatrix.end()) {
+    //     return _computeDistance(index1,index2);
+    //     printf("Not in map loser\n");
+    // }  
+
+    // grab distance from matrix
+    float distance = _distanceMatrix[index1][index2];
+    if (distance < 0) {
+        // compute and store distance
+        distance = _computeDistance(index1,index2);
+        _distanceMatrix[index1][index2] = distance;
+    }
+
+    return distance;
+}

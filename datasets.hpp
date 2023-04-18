@@ -36,18 +36,45 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #include <algorithm>
 #include <fstream>
 
+
 namespace Datasets {
+std::string data_directory = "/users/cfoste18/data/cfoste18/datasets/";
 // generate dataset of [N,D] floating point numbers
 // uniformly distributed from [-1,1]
-void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N, unsigned int seed) {
+void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N, float cube_length, unsigned int seed) {
     srand(seed);  // for same initializations of random variables
 
     unsigned int numElements = (unsigned int)dimension * N;
-    // delete[] dataPointer;
     dataPointer = new float[N * dimension];
 
     for (int i = 0; i < numElements; i++) {
-        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
+        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2*cube_length - cube_length;
+    }
+}
+
+// generate dataset of [N,D] floating point numbers
+// uniformly distributed from [-1,1]
+void sphericalDistribution(float*& dataPointer, unsigned int dimension, unsigned int N, float std, unsigned int seed) {
+    srand(seed);  // for same initializations of random variables
+
+    unsigned int numElements = (unsigned int)dimension * N;
+    dataPointer = new float[numElements];
+
+    for (unsigned int i = 0; i < N; i++) {
+        // pick a random vector, calculate magnitude of it
+        float norm = 0;
+        for (unsigned int d = 0; d < dimension; d++) {
+            unsigned int el = (i*dimension) + d;
+            dataPointer[el] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
+            norm += dataPointer[el]*dataPointer[el];
+        }
+        norm = sqrt(norm);
+
+        // divide each element by the magnitiude to normalie
+        for (unsigned int d = 0; d < dimension; d++) {
+            unsigned int el = (i*dimension) + d;
+            dataPointer[el] /= norm;
+        }
     }
 }
 
@@ -170,172 +197,10 @@ void extractTestset(unsigned int dimension, float*& dataPointer, unsigned int& d
     return;
 }
 
-/**
- * @brief Retrieve the WDBC dataset. 569 instances in 30D.
- *
- * @param dataPointer
- * @param dimension
- * @param datasetSize
- * @param dataDirectory
- */
-void Cities(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string data_path = std::string(dataDirectory).append("us_cities.csv");
-    dimension = 2;
-    datasetSize = 29880;
-    dataPointer = new float[datasetSize * dimension];
-
-    std::string line, word;
-    std::fstream file(data_path.c_str(), std::ios::in);
-    if (!file.is_open()) {
-        printf("Open Error! \n");
-    }
-    if (!file.good()) {
-        printf("not good!");
-        return;
-    }
-
-    // get each line.
-    std::getline(file, line); // heading
-
-    unsigned int index = 0;
-    while (std::getline(file, line)) {
-        if (line == "") break;
-        std::stringstream lineSS(line);
-
-        // ignore first  values in each line. id 
-        std::getline(lineSS, word, ',');
-        for (int d = 0; d < dimension; d++) {
-            std::getline(lineSS, word, ',');
-            dataPointer[index * dimension + d] = std::atof(word.c_str());
-        }
-        index += 1;
-    }
-
-    return;
-}
-
-/**
- * @brief Retrieve the Corel68k dataset. 68040 instances in 57D. Takes Color Histograms, Color Moments, and Color Texture
- *
- * @param dataPointer
- * @param dimension
- * @param datasetSize
- * @param dataDirectory
- */
-void Corel68k1(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string data_path_H = std::string(dataDirectory).append("ColorHistogram.asc");
-    dimension = 32;
-    datasetSize = 68040;
-    dataPointer = new float[datasetSize * dimension];
-
-    std::string line_H, word_H;
-    std::fstream file_H(data_path_H.c_str(), std::ios::in);
-    if (!file_H.is_open()) {
-        printf("Open Error! \n");
-    }
-
-    // get each line.
-    unsigned int index = 0;
-    while (std::getline(file_H, line_H)) {
-        if (line_H == "") break;
-
-        // get the 32D color histogram first.
-        unsigned int sd = 0;
-        std::stringstream lineSS_H(line_H);
-        std::getline(lineSS_H, word_H, ' ');  // skip first entry as id
-        for (int d = 0; d < 32; d++) {
-            std::getline(lineSS_H, word_H, ' ');
-            dataPointer[index*dimension + (sd + d)] = std::atof(word_H.c_str());
-        }
-
-        index += 1;
-    }
-
-    return;
-}
-
-/**
- * @brief Retrieve the Corel68k dataset. 68040 instances in 57D. Takes Color Histograms, Color Moments, and Color Texture
- *
- * @param dataPointer
- * @param dimension
- * @param datasetSize
- * @param dataDirectory
- */
-void Corel68k2(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string data_path_M = std::string(dataDirectory).append("ColorMoments.asc");
-    dimension = 9;
-    datasetSize = 68040;
-    dataPointer = new float[datasetSize * dimension];
-
-    std::string line_M, word_M;
-    std::fstream file_M(data_path_M.c_str(), std::ios::in);
-    if (!file_M.is_open()) {
-        printf("Open Error! \n");
-    }
-
-    // get each line.
-    unsigned int index = 0;
-    while (std::getline(file_M, line_M)) {
-        if (line_M == "") break;
-
-        // get the 9D color moment next.
-        unsigned int sd = 0;
-        std::stringstream lineSS_M(line_M);
-        std::getline(lineSS_M, word_M, ' ');  // skip first entry as id
-        for (int d = 0; d < 9; d++) {
-            std::getline(lineSS_M, word_M, ' ');
-            dataPointer[index * dimension + (sd + d)] = std::atof(word_M.c_str());
-        }
-
-        index += 1;
-    }
-
-    return;
-}
-
-/**
- * @brief Retrieve the Corel68k dataset. 68040 instances in 57D. Takes Color Histograms, Color Moments, and Color Texture
- *
- * @param dataPointer
- * @param dimension
- * @param datasetSize
- * @param dataDirectory
- */
-void Corel68k3(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string data_path_T = std::string(dataDirectory).append("CoocTexture.asc");
-    dimension = 16;
-    datasetSize = 68040;
-    dataPointer = new float[datasetSize * dimension];
-
-    std::string line_T, word_T;
-    std::fstream file_T(data_path_T.c_str(), std::ios::in);
-    if (!file_T.is_open()) {
-        printf("Open Error! \n");
-    }
-
-    // get each line.
-    unsigned int index = 0;
-    while (std::getline(file_T, line_T)) {
-        if (line_T == "") break;
-
-        // get the 16D co-occurence texture next.
-        unsigned int sd = 0;
-        std::stringstream lineSS_T(line_T);
-        std::getline(lineSS_T, word_T, ' ');  //  skip first entry as id
-        for (int d = 0; d < 16; d++) {
-            std::getline(lineSS_T, word_T, ' ');
-            dataPointer[index * dimension + (sd + d)] = std::atof(word_T.c_str());
-        }
-
-        index += 1;
-    }
-
-    return;
-}
 
 
-void SIFT1M(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string data_path) {
+void SIFT1M(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize) {
+    std::string data_path = data_directory.append("sift/sift_base.fvecs");
 
     printf("get SIFT1M...\n");
 

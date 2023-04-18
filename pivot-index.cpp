@@ -1,13 +1,13 @@
-#include "pivot-selection.hpp"
+#include "pivot-index.hpp"
 
 /**
- * @brief Index Construction: 
- * 
- * @param radius 
- * @param sparseMatrix 
- * @param pivotLayer 
+ * @brief Construct a 2-Layer Cover Tree
+ *
+ * @param radius
+ * @param sparseMatrix
+ * @param pivotLayer
  */
-void PivotSelection::selectPivots(float radius, SparseMatrix &sparseMatrix, PivotLayer &pivotLayer) {
+void PivotIndex::Greedy_2L(float radius, SparseMatrix& sparseMatrix, PivotLayer& pivotLayer) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
     pivotLayer = PivotLayer(0, 2, radius);
 
@@ -20,7 +20,7 @@ void PivotSelection::selectPivots(float radius, SparseMatrix &sparseMatrix, Pivo
         tsl::sparse_set<unsigned int>::const_iterator it1;
         for (it1 = pivotLayer.pivotIndices->begin(); it1 != pivotLayer.pivotIndices->end(); it1++) {
             unsigned int const pivotIndex = (*it1);
-            float const distance = sparseMatrix._computeDistance(queryIndex,pivotIndex);
+            float const distance = sparseMatrix._computeDistance(queryIndex, pivotIndex);
             if (distance <= radius) {
                 if (distance < closestParentDistance) {
                     closestParentDistance = distance;
@@ -29,20 +29,24 @@ void PivotSelection::selectPivots(float radius, SparseMatrix &sparseMatrix, Pivo
             }
         }
 
-        // add query to domain of the closest parent 
-        if (closestParentDistance <= 10000) { // some magically large number
-            pivotLayer.addPivotChild(closestParent,queryIndex);
-        } 
+        // add query to domain of the closest parent
+        if (closestParentDistance <= 10000) {  // some magically large number
+            pivotLayer.addChild(closestParent, queryIndex);
+            pivotLayer.updateMaxChildDistance(closestParent, closestParentDistance);
+        }
 
         // if no parent, query becomes a pivot
         else {
             pivotLayer.addPivot(queryIndex);
-            pivotLayer.addPivotChild(queryIndex,queryIndex);
+            pivotLayer.addChild(queryIndex, queryIndex);
         }
     }
 
     return;
 }
+
+
+
 
 
 /**
@@ -51,7 +55,7 @@ void PivotSelection::selectPivots(float radius, SparseMatrix &sparseMatrix, Pivo
  * @param sparseMatrix
  * @param pivotLayerVector
  */
-bool PivotSelection::validatePivotSelection(PivotLayer &pivotLayer, SparseMatrix &sparseMatrix) {
+bool PivotIndex::validatePivotSelection(PivotLayer& pivotLayer, SparseMatrix& sparseMatrix) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
     float const radius = pivotLayer.radius;
     std::vector<unsigned int> pointList{};
@@ -65,25 +69,25 @@ bool PivotSelection::validatePivotSelection(PivotLayer &pivotLayer, SparseMatrix
     tsl::sparse_set<unsigned int>::const_iterator it1;
     for (it1 = pivotIndices.begin(); it1 != pivotIndices.end(); it1++) {
         unsigned int const pivotIndex = (*it1);
-        tsl::sparse_set<unsigned int> const& pivotDomain = pivotLayer.get_pivotChildren(pivotIndex);
+        std::vector<unsigned int> const& pivotDomain = pivotLayer.get_pivotChildren(pivotIndex);
 
-        tsl::sparse_set<unsigned int>::const_iterator it2;
+        std::vector<unsigned int>::const_iterator it2;
         for (it2 = pivotDomain.begin(); it2 != pivotDomain.end(); it2++) {
             unsigned int const childIndex = (*it2);
 
             // check within radius
-            float const distance = sparseMatrix._computeDistance(pivotIndex,childIndex);
+            float const distance = sparseMatrix._computeDistance(pivotIndex, childIndex);
             if (distance > radius) {
                 printf("Point not within radius of pivot!\n");
-                printf("p=%u,c=%u,d(p,c)=%.4f\n",pivotIndex,childIndex,distance);
+                printf("p=%u,c=%u,d(p,c)=%.4f\n", pivotIndex, childIndex, distance);
                 return false;
             }
 
             // remove child from list, ensure not seen before
-            std::vector<unsigned int>::iterator it3 = std::find(pointList.begin(),pointList.end(),childIndex);
+            std::vector<unsigned int>::iterator it3 = std::find(pointList.begin(), pointList.end(), childIndex);
             if (it3 == pointList.end()) {
                 printf("Child has already been represented! Coverage not minimal!\n");
-                printf("c=%u\n",childIndex);
+                printf("c=%u\n", childIndex);
                 return false;
             } else {
                 pointList.erase(it3);
@@ -100,7 +104,7 @@ bool PivotSelection::validatePivotSelection(PivotLayer &pivotLayer, SparseMatrix
     return true;
 }
 
-void PivotSelection::printSet(tsl::sparse_set<unsigned int> const &set) {
+void PivotIndex::printSet(tsl::sparse_set<unsigned int> const& set) {
     printf("{");
     tsl::sparse_set<unsigned int>::const_iterator it1;
     for (it1 = set.begin(); it1 != set.end(); it1++) {
