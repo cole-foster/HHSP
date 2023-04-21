@@ -56,6 +56,7 @@ void GHSP::GHSP_3L(unsigned int const queryIndex, std::vector<PivotLayer> &pivot
     }
 
     // Begin the GHSP Algorithm Loop
+    int count = 0;
     while (A1.size() > 0 || I1.size() > 0 || A2.size() > 0 || I2.size() > 0 || A3.size() > 0) {
         /**
          * ============================================================
@@ -390,7 +391,7 @@ void GHSP::GHSP_3L(unsigned int const queryIndex, std::vector<PivotLayer> &pivot
             }
         }
 
-        if (dmin > 10000) continue;  // large, magic number signaling no neighbor possible
+        if (dmin > 10000) break;  // large, magic number signaling no new neighbor possible
         unsigned int const x1 = index1;
         float const distance_Q1 = getDistance(queryIndex, x1, sparseMatrix);
         neighbors.push_back(x1);
@@ -652,9 +653,10 @@ int GHSP::validatePivot(unsigned int const pivotIndex, float const radius, unsig
  * @param sparseMatrix
  * @param neighbors
  */
-void GHSP::GHSP_2L(unsigned int const queryIndex, PivotLayer &pivotLayer, SparseMatrix &sparseMatrix,
+void GHSP::GHSP_2L(unsigned int const queryIndex, std::vector<PivotLayer> &pivotLayers, SparseMatrix &sparseMatrix,
                    std::vector<unsigned int> &neighbors) {
     neighbors.clear();
+    PivotLayer& pivotLayer = pivotLayers[0];
 
     // initialize query distance storage
     unsigned int datasetSize = sparseMatrix._datasetSize;
