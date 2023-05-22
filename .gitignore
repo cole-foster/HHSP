@@ -1,10 +1,9 @@
-sparse-map/
 slurms/
-old/
 build/
+old/
 bin/
-.vscode/
+
+
 test.sh
-run_batch
 commands.txt
 bashRun_commands_csv.sh

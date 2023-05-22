@@ -15,10 +15,13 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native" CACHE STRING "" FORCE)
 # -- See this: https://gcc.gnu.org/ml/gcc/2001-07/msg02150.html --
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math" CACHE STRING "" FORCE)
 
+# openmp
+find_package(OpenMP)
+MESSAGE("OpenMP: ${OpenMP_pthread_LIBRARY}")
+
 # GHSP optimization
-set(GHSP_OPT TRUE)
+option(GHSP_OPT "enable use/build of optimization library" OFF)
 if (GHSP_OPT)
-    #SET(NLOPT_HOME "/home/colef8/nlopt")
     SET(NLOPT_HOME "/users/cfoste18/data/cfoste18/hRNG/hRNG_Optimization/include/nlopt/install")
     SET(NLOPT_DIRECTORIES "${NLOPT_HOME}/include/")
     find_library(NLOPT nlopt PATHS "${NLOPT_HOME}/lib/")
@@ -30,19 +33,13 @@ MESSAGE("NLOPT: ${NLOPT}")
 set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
-# all files
-set(HEADERS CLI11.hpp datasets.hpp sparse-matrix.hpp pivot-layer.hpp pivot-index.hpp NNS.hpp GHSP.hpp)
-set(SOURCES sparse-matrix.cpp pivot-index.cpp NNS.cpp GHSP.cpp)
-add_library(src ${HEADERS} ${SOURCES})
-target_include_directories(src PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
+message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 
-# add scripts
-add_executable(main main.cpp)
-target_link_libraries(main src)
-install(TARGETS main)
+# add the source files
+add_subdirectory(src)
 
-add_executable(opt main-optimization.cpp ${HEADERS} ${SOURCES})
-target_include_directories(opt PUBLIC ${PROJECT_SOURCE_DIR}/sparse-map/include)
-install(TARGETS opt)
-target_include_directories(opt PRIVATE ${NLOPT_DIRECTORIES})
-target_link_libraries(opt PRIVATE ${NLOPT})
+# add the scripts
+add_subdirectory(scripts)
+
+
+
