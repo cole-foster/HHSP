@@ -1,60 +1,76 @@
 #include "pivot-index.hpp"
 
-
-void PivotIndex::Greedy_3L(std::vector<float> radiusVector, SparseMatrix& sparseMatrix, std::vector<PivotLayer>& pivotLayers) {
+/**
+ * @brief Greedy Construction of the Cover Tree with Finite Layers (Defined by Radii). Greedy as in built incrementally
+ * and does not perform nearest-parent assignment.
+ *
+ * @param radiusVector
+ * @param sparseMatrix
+ * @param coverTree
+ */
+void PivotIndex::CoverTree_Greedy(std::vector<float> radiusVector, SparseMatrix& sparseMatrix,
+                                  std::vector<PivotLayer>& coverTree) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
-    if (radiusVector.size() != 2) {
-        printf("Incorrect Radius Vector for 3L\n");
-        return;
-    }
     radiusVector.push_back(0);
+    int const numLayers = radiusVector.size();
 
-    //> Initialize Pivot Hierarchy
-    pivotLayers.clear();
-    pivotLayers.resize(2);
-    pivotLayers[0] = PivotLayer(0,3,radiusVector[0]);
-    pivotLayers[1] = PivotLayer(1,3,radiusVector[1]);
+    //> Change to Effective Radius Vector -> Makes them Covering Radii for entire pivot domains
+    std::vector<float> temp_vec = radiusVector;
+    for (int i = 0; i < (int)radiusVector.size(); i++) {
+        for (int j = i + 1; j < (int)temp_vec.size(); j++) {
+            radiusVector[i] += (float)temp_vec[j];
+        }
+    }
+
+    //> Initialize Each Layer of the Cover Tree
+    coverTree.clear();
+    coverTree.resize(numLayers - 1);
+    for (int layerIndex = 0; layerIndex < numLayers - 1; layerIndex++) {
+        coverTree[layerIndex] = PivotLayer(layerIndex, numLayers, radiusVector[layerIndex]);
+    }
 
     //> Incremental construction in a top-down fashion
     for (unsigned int queryIndex = 0; queryIndex < datasetSize; queryIndex++) {
-        int orphanLayer = 0;  // 1 Below Layer without Parent
-        unsigned int lowestParent;  // Closest Parent in layer above orphanage
+        // printf("Q: %u...\n",queryIndex);
+        int orphanLayer = 0;        // 1 Below Lowest Layer With a Parent
+        unsigned int lowestParent;  // Closest Parent in the Layer Above Orphanage
 
-        // top-down, find lowest layer with a parent
+        //> Top-Down approach, find the lowest layer with a parent
         std::vector<unsigned int> grandParents{};
-        for (int layerIndex = 0; layerIndex <= 1; layerIndex++) {
-
-            //> Collect the Spotlight |--> Pivots in layer local to Q
-            std::vector<unsigned int> spotlight{}; 
-            if (layerIndex == 0) { // collect all top layer pivots
-                tsl::sparse_set<unsigned int> const& topLayerPivots = *(pivotLayers[0].get_pivotIndices_ptr());
+        for (int layerIndex = 0; layerIndex <= numLayers - 1; layerIndex++) {
+            //> Collect the Spotlight |--> Pivots in layer local to Q (may be a parent)
+            std::vector<unsigned int> spotlight{};
+            if (layerIndex == 0) {
+                // Collect All Top Layer Pivots
+                tsl::sparse_set<unsigned int> const& topLayerPivots = *(coverTree[0].get_pivotIndices_ptr());
                 spotlight.insert(spotlight.end(), topLayerPivots.begin(), topLayerPivots.end());
 
-            } else { // collect children of grandparents
-                for (int it1 = 0; it1 < (int) grandParents.size(); it1++) {
+            } else {
+                // Collect the Children of "Grandparents", may be parents of Q
+                for (int it1 = 0; it1 < (int)grandParents.size(); it1++) {
                     unsigned int const grandPivot = grandParents[it1];
-                    std::vector<unsigned int> const& pivotDomain = pivotLayers[layerIndex-1].get_pivotChildren(grandPivot);
+                    std::vector<unsigned int> const& pivotDomain =
+                        coverTree[layerIndex - 1].get_pivotChildren(grandPivot);
                     spotlight.insert(spotlight.end(), pivotDomain.begin(), pivotDomain.end());
                 }
             }
 
-            //> Find the closest parent of Q from Spotlight
+            //> Find the closest parent of Q from the Spotlight
             float closestParentDistance = HUGE_VAL;
-            grandParents.clear();
-            for (int it2 = 0; it2 < (int) spotlight.size(); it2++) {
+            grandParents.clear();  // grandparents: any pivot within the covering radius r of Q
+            for (int it2 = 0; it2 < (int)spotlight.size(); it2++) {
                 unsigned int const candidateParentPivot = spotlight[it2];
                 float const distance = sparseMatrix._computeDistance(queryIndex, candidateParentPivot);
 
-                // test if pivot may cover a future parent
+                // Test if Q is within the Covering Radius
                 if (distance <= radiusVector[layerIndex]) {
                     grandParents.push_back(candidateParentPivot);  // could have children as lower parent
 
-                    // test if pivot is indeed a parent
+                    // Test if Q is an actual parent of Q
                     if (distance <= radiusVector[layerIndex] - radiusVector[layerIndex + 1]) {
-
                         // is this new lowest parent layer?
                         if (orphanLayer < layerIndex + 1) {
-                            orphanLayer = layerIndex + 1;
+                            orphanLayer = layerIndex + 1;  // no parent yet in layer below
                         }
 
                         // is this the closest parent?
@@ -67,168 +83,74 @@ void PivotIndex::Greedy_3L(std::vector<float> radiusVector, SparseMatrix& sparse
             }
 
             //> Break if no potential future parents
-            if (grandParents.empty()) {
-                break;
+            if (grandParents.empty()) break;
+        }
+
+        //> Nesting: Add Query To Orphan Layer and All Layers Below
+        for (int layerIndex = orphanLayer; layerIndex < numLayers; layerIndex++) {
+            //
+            //> Becomes a Pivot on Every Lower Layer Except Bottom: Not Explicitly Represented
+            if (layerIndex < numLayers - 1) {
+                coverTree[layerIndex].addPivot(queryIndex);
             }
-        }
-        
-        // If query a top-layer pivot
-        if (orphanLayer == 0) {
 
-            // add query to top layer
-            pivotLayers[0].addPivot(queryIndex);
-            
-            // add query to second layer
-            pivotLayers[1].addPivot(queryIndex);
-            pivotLayers[1].addParent(queryIndex, queryIndex);
-            pivotLayers[0].addChild(queryIndex, queryIndex);
-            pivotLayers[0].updateMaxChildDistance(queryIndex, 0.0f);
+            //> Becomes a Child Of Itself
+            if (layerIndex > 0) {
+                coverTree[layerIndex - 1].addChild(queryIndex, queryIndex);
+            }
 
-            // add query to bottom layer
-            pivotLayers[1].addChild(queryIndex, queryIndex);
-            pivotLayers[1].updateMaxChildDistance(queryIndex, 0.0f);
-            pivotLayers[0].updateMaxChildDistance(queryIndex, 0.0f);
-        }
-
-        // If query a second layer pivot
-        else if (orphanLayer == 1) {
-
-            // add query to second layer
-            pivotLayers[1].addPivot(queryIndex);
-            pivotLayers[1].addParent(queryIndex, lowestParent);
-            pivotLayers[0].addChild(lowestParent, queryIndex);
-            pivotLayers[0].updateMaxChildDistance(lowestParent, sparseMatrix._computeDistance(lowestParent, queryIndex));
-
-            // add query to bottom layer
-            pivotLayers[1].addChild(queryIndex, queryIndex);
-            pivotLayers[1].updateMaxChildDistance(queryIndex, 0.0f);
-            pivotLayers[0].updateMaxChildDistance(lowestParent, 0.0f);
-        }
-
-
-        // If query a bottom layer pivot only
-        else {
-
-            // add query to bottom layer
-            pivotLayers[1].addChild(lowestParent, queryIndex);
-            pivotLayers[1].updateMaxChildDistance(lowestParent, sparseMatrix._computeDistance(lowestParent, queryIndex));
-            unsigned int const grandParent = pivotLayers[1].get_parentIndex(lowestParent);
-            pivotLayers[0].updateMaxChildDistance(grandParent, sparseMatrix._computeDistance(grandParent, queryIndex));
-        }
-
-    }
-
-    return;
-}
-
-
-/**
- * @brief Construct a 2-Layer Cover Tree
- *
- * @param radius
- * @param sparseMatrix
- * @param pivotLayer
- */
-void PivotIndex::Greedy_2L(float radius, SparseMatrix& sparseMatrix, std::vector<PivotLayer>& pivotLayers) {
-    unsigned int const datasetSize = sparseMatrix._datasetSize;
-    pivotLayers.clear();
-    pivotLayers.push_back(PivotLayer(0, 2, radius));
-
-    // incrementally add each point to the hierarchy
-    for (unsigned int queryIndex = 0; queryIndex < datasetSize; queryIndex++) {
-        float closestParentDistance = HUGE_VAL;
-        unsigned int closestParent;
-
-        // compute distance to all existing parents
-        tsl::sparse_set<unsigned int>::const_iterator it1;
-        for (it1 = pivotLayers[0].pivotIndices->begin(); it1 != pivotLayers[0].pivotIndices->end(); it1++) {
-            unsigned int const pivotIndex = (*it1);
-            float const distance = sparseMatrix._computeDistance(queryIndex, pivotIndex);
-            if (distance <= radius) {
-                if (distance < closestParentDistance) {
-                    closestParentDistance = distance;
-                    closestParent = pivotIndex;
-                }
+            //> Becomes a Parent Of Itself
+            if (layerIndex < numLayers - 1 && layerIndex > orphanLayer) {
+                coverTree[layerIndex].addParent(queryIndex, queryIndex);
             }
         }
 
-        // add query to domain of the closest parent
-        if (closestParentDistance <= 10000) {  // some magically large number
-            pivotLayers[0].addChild(closestParent, queryIndex);
-            pivotLayers[0].updateMaxChildDistance(closestParent, closestParentDistance);
-        }
+        // Add The Parent of the Query, Recursively Update Parents MaxChildDistance
+        if (orphanLayer > 0) {
+            if (orphanLayer < numLayers - 1) {
+                coverTree[orphanLayer].addParent(queryIndex, lowestParent);
+            }
+            coverTree[orphanLayer - 1].addChild(lowestParent, queryIndex);
+            coverTree[orphanLayer - 1].updateMaxChildDistance(lowestParent,
+                                                              sparseMatrix._computeDistance(lowestParent, queryIndex));
 
-        // if no parent, query becomes a pivot
-        else {
-            pivotLayers[0].addPivot(queryIndex);
-            pivotLayers[0].addChild(queryIndex, queryIndex);
+            // Update Max Child Distance for All Parents of Parents
+            unsigned int parent = lowestParent;
+            for (int layerIndex = orphanLayer - 1; layerIndex > 0; layerIndex--) {
+                unsigned int grandParent = coverTree[layerIndex].get_parentIndex(parent);
+                coverTree[layerIndex - 1].updateMaxChildDistance(
+                    grandParent, sparseMatrix._computeDistance(grandParent, queryIndex));
+                parent = grandParent;
+            }
         }
     }
 
     return;
 }
 
-
-
-
+// used for cover tree validation, below
+bool recursiveDepthFirstCheck(std::vector<unsigned int> parents, int const layerIndex,
+                              std::vector<PivotLayer>& coverTree, SparseMatrix& sparseMatrix,
+                              std::vector<unsigned int>& pointList);
 
 /**
- * @brief ensuring minimal coverage of the set
+ * @brief Validate the Coverage and Nesting Properties of the Cover Tree, but not Separation.
  *
+ * @param coverTree
  * @param sparseMatrix
- * @param pivotLayerVector
+ * @return true
+ * @return false
  */
-bool PivotIndex::validatePivotSelection(PivotLayer& pivotLayer, SparseMatrix& sparseMatrix) {
+bool PivotIndex::validateCoverTree(std::vector<PivotLayer>& coverTree, SparseMatrix& sparseMatrix) {
     unsigned int const datasetSize = sparseMatrix._datasetSize;
-    float const radius = pivotLayer.radius;
-    std::vector<unsigned int> pointList{};
-    pointList.resize(datasetSize);
-    for (unsigned int queryIndex = 0; queryIndex < datasetSize; queryIndex++) {
-        pointList[queryIndex] = queryIndex;
+    int const numLayers = coverTree.size() + 1;
+
+    // print stats:
+    printf("LayerID, Radius, NumPivots\n");
+    for (int layerIndex = 0; layerIndex < numLayers - 1; layerIndex++) {
+        printf("%d, %.4f, %u\n", layerIndex, coverTree[layerIndex].radius, coverTree[layerIndex].pivotIndices->size());
     }
-
-    // now, iterate through the pivot domains and remove points one-by-one
-    tsl::sparse_set<unsigned int> const& pivotIndices = *pivotLayer.get_pivotIndices_ptr();
-    tsl::sparse_set<unsigned int>::const_iterator it1;
-    for (it1 = pivotIndices.begin(); it1 != pivotIndices.end(); it1++) {
-        unsigned int const pivotIndex = (*it1);
-        std::vector<unsigned int> const& pivotDomain = pivotLayer.get_pivotChildren(pivotIndex);
-
-        std::vector<unsigned int>::const_iterator it2;
-        for (it2 = pivotDomain.begin(); it2 != pivotDomain.end(); it2++) {
-            unsigned int const childIndex = (*it2);
-
-            // check within radius
-            float const distance = sparseMatrix._computeDistance(pivotIndex, childIndex);
-            if (distance > radius) {
-                printf("Point not within radius of pivot!\n");
-                printf("p=%u,c=%u,d(p,c)=%.4f\n", pivotIndex, childIndex, distance);
-                return false;
-            }
-
-            // remove child from list, ensure not seen before
-            std::vector<unsigned int>::iterator it3 = std::find(pointList.begin(), pointList.end(), childIndex);
-            if (it3 == pointList.end()) {
-                printf("Child has already been represented! Coverage not minimal!\n");
-                printf("c=%u\n", childIndex);
-                return false;
-            } else {
-                pointList.erase(it3);
-            }
-        }
-    }
-
-    // should be no points left
-    if (pointList.size() > 0) {
-        printf("There are points not covered by the index! Coverage violated!\n");
-        return false;
-    }
-
-    return true;
-}
-
-bool PivotIndex::validatePivotSelection_3L(std::vector<PivotLayer>& pivotLayers, SparseMatrix& sparseMatrix) {
-    unsigned int const datasetSize = sparseMatrix._datasetSize;
+    printf("%d, %.4f, %u\n", numLayers - 1, 0.0000, datasetSize);
 
     // each point should be represented
     std::vector<unsigned int> pointList{};
@@ -237,72 +159,92 @@ bool PivotIndex::validatePivotSelection_3L(std::vector<PivotLayer>& pivotLayers,
         pointList[queryIndex] = queryIndex;
     }
 
-    //> Depth-First Traversal, remove each point from list
-    
     // Top-Layer Iteration
-    tsl::sparse_set<unsigned int> const& pivotIndices = *(pivotLayers[0].get_pivotIndices_ptr());
+    tsl::sparse_set<unsigned int> const& pivotIndices = *(coverTree[0].get_pivotIndices_ptr());
     tsl::sparse_set<unsigned int>::const_iterator it1;
     for (it1 = pivotIndices.begin(); it1 != pivotIndices.end(); it1++) {
-        unsigned int const pivotIndex1 = (*it1);
-        float const radius1 = pivotLayers[0].radius;
-        float const maxDist1 = pivotLayers[0].get_maxChildDistance(pivotIndex1);
-        std::vector<unsigned int> const& pivotDomain1 = pivotLayers[0].get_pivotChildren(pivotIndex1);
-
-        // Second-Layer Iteration
-        std::vector<unsigned int>::const_iterator it2;
-        for (it2 = pivotDomain1.begin(); it2 != pivotDomain1.end(); it2++) {
-            unsigned int const pivotIndex2 = (*it2);
-            std::vector<unsigned int> const& pivotDomain2 = pivotLayers[1].get_pivotChildren(pivotIndex2);
-            float const radius2 = pivotLayers[1].radius;
-            float const maxDist2 = pivotLayers[1].get_maxChildDistance(pivotIndex2);
-
-            // check pivot2 within radius of pivot1
-            float const distance12 = sparseMatrix._computeDistance(pivotIndex1,pivotIndex2);
-            if (distance12 > radius1 || distance12 > maxDist1) {
-                printf("L2 Pivot not within radius of L1 Pivot!\n");
-                printf("p=%u,c=%u,d(p,c)=%.4f,r=%.4f,MCD=%.4f\n", pivotIndex1, pivotIndex2, distance12, radius1, maxDist1);
-                return false;
-            }
-
-            // Second-Layer Iteration
-            std::vector<unsigned int>::const_iterator it3;
-            for (it3 = pivotDomain2.begin(); it3 != pivotDomain2.end(); it3++) {
-                unsigned int const pivotIndex3 = (*it3);
-
-                // check pivot3 within radius of pivot2
-                float const distance23 = sparseMatrix._computeDistance(pivotIndex2,pivotIndex3);
-                if (distance23 > radius2 || distance23 > maxDist2) {
-                    printf("L3 Pivot not within radius of L2 Pivot!\n");
-                    printf("p=%u,c=%u,d(p,c)=%.4f,r=%.4f,MCD=%.4f\n", pivotIndex2, pivotIndex3, distance23, radius2, maxDist2);
-                    return false;
-                }
-
-                // check pivot3 within radius of pivot1
-                float const distance13 = sparseMatrix._computeDistance(pivotIndex1,pivotIndex3);
-                if (distance13 > radius1 || distance13 > maxDist1) {
-                    printf("L3 Pivot not within radius of L1 Pivot!\n");
-                    printf("p=%u,c=%u,d(p,c)=%.4f,r=%.4f,MCD=%.4f\n", pivotIndex1, pivotIndex3, distance13, radius1, maxDist1);
-                    return false;
-                }
-
-                // now remove pivot3 from representation list
-                std::vector<unsigned int>::iterator it3a = std::find(pointList.begin(), pointList.end(), pivotIndex3);
-                if (it3a == pointList.end()) {
-                    printf("Child has already been represented! Coverage not minimal!\n");
-                    printf("c=%u\n", pivotIndex3);
-                    return false;
-                } else {
-                    pointList.erase(it3a);
-                }   
-            }
-        }
+        unsigned int const pivotIndex = (*it1);
+        std::vector<unsigned int> parentsList{};
+        parentsList.resize(numLayers);
+        parentsList[0] = pivotIndex;
+        bool flag_success = recursiveDepthFirstCheck(parentsList, 0, coverTree, sparseMatrix, pointList);
+        if (!flag_success) return false;
     }
 
     // should be no points left
     if (pointList.size() > 0) {
         printf("There are points not covered by the index! Coverage violated!\n");
-        printf("  -> %u: ",pointList.size()); PivotIndex::printSet(pointList);
+        printf("  -> %u: ", pointList.size());
+        PivotIndex::printSet(pointList);
         return false;
+    }
+
+    return true;
+}
+
+/**
+ * @brief Recursive Function for Performing Depth-First Cover Tree Validation
+ *
+ * @param parents
+ * @param layerIndex
+ * @param coverTree
+ * @param sparseMatrix
+ * @param pointList
+ * @return true
+ * @return false
+ */
+bool recursiveDepthFirstCheck(std::vector<unsigned int> parents, int const layerIndex,
+                              std::vector<PivotLayer>& coverTree, SparseMatrix& sparseMatrix,
+                              std::vector<unsigned int>& pointList) {
+    int numLayers = coverTree.size() + 1;
+
+    // Iterate through the Domain of Lowest Parent
+    std::vector<unsigned int> const& pivotDomain = coverTree[layerIndex].get_pivotChildren(parents[layerIndex]);
+    for (int it1 = 0; it1 < (int)pivotDomain.size(); it1++) {
+        unsigned int const childIndex = pivotDomain[it1];
+        float childRadius = 0;       // radius of the child pivot
+        float childMaxDistance = 0;  // max distance to child of child
+        if (layerIndex + 1 < numLayers - 1) {
+            childRadius = coverTree[layerIndex + 1].radius;
+            // childMaxDistance = coverTree[layerIndex + 1].get_maxChildDistance(childIndex);
+        }
+
+        // check childIndex within radius/maxDistance of every parent index
+        for (int coarserLayerIndex = 0; coarserLayerIndex <= layerIndex; coarserLayerIndex++) {
+            unsigned int const coarserParent = parents[coarserLayerIndex];
+            float const pivotRadius = coverTree[coarserLayerIndex].radius;
+            float const pivotMaxDistance = coverTree[coarserLayerIndex].get_maxChildDistance(coarserParent);
+
+            float const distance = sparseMatrix._computeDistance(coarserParent, childIndex);
+            if (distance > pivotRadius - childRadius) {
+                printf("ChildIndex %u on L-%d not within radius of ParentIndex %u on L-%d!\n", childIndex,
+                       layerIndex + 1, coarserParent, coarserLayerIndex);
+                return false;
+            }
+
+            if (distance > pivotMaxDistance) {
+                printf(
+                    "ChildIndex %u on L-%d -max child distance- not within max-child-distance of ParentIndex %u on "
+                    "L-%d!\n",
+                    childIndex, layerIndex + 1, coarserParent, coarserLayerIndex);
+                return false;
+            }
+        }
+
+        if (layerIndex + 1 < numLayers - 1) {
+            parents[layerIndex + 1] = childIndex;
+            recursiveDepthFirstCheck(parents, layerIndex + 1, coverTree, sparseMatrix, pointList);
+        } else {
+            // if bottom layer, remove points from list
+            std::vector<unsigned int>::iterator it3a = std::find(pointList.begin(), pointList.end(), childIndex);
+            if (it3a == pointList.end()) {
+                printf("Child has already been represented! Coverage not minimal!\n");
+                printf("c=%u\n", childIndex);
+                return false;
+            } else {
+                pointList.erase(it3a);
+            }
+        }
     }
 
     return true;

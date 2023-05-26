@@ -9,6 +9,8 @@
 
 namespace GHSP {
 
+    void Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<PivotLayer> &coverTree, SparseMatrix &sparseMatrix, std::vector<unsigned int> &neighbors);
+
     void GHSP_2L(unsigned int const queryIndex, std::vector<PivotLayer> &pivotLayers, SparseMatrix &sparseMatrix, std::vector<unsigned int> &neighbors);
     void GHSP_3L(unsigned int const queryIndex, std::vector<PivotLayer> &pivotLayers, SparseMatrix &sparseMatrix, std::vector<unsigned int> &neighbors);
     

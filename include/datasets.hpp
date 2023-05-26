@@ -39,96 +39,140 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 namespace Datasets {
 std::string data_directory = "/users/cfoste18/data/cfoste18/datasets/";
-// generate dataset of [N,D] floating point numbers
-// uniformly distributed from [-1,1]
-void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int N, float cube_length, unsigned int seed) {
-    srand(seed);  // for same initializations of random variables
-
-    unsigned int numElements = (unsigned int)dimension * N;
-    dataPointer = new float[N * dimension];
-
-    for (int i = 0; i < numElements; i++) {
-        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2*cube_length - cube_length;
-    }
-}
 
 // generate dataset of [N,D] floating point numbers
 // uniformly distributed from [-1,1]
-void sphericalDistribution(float*& dataPointer, unsigned int dimension, unsigned int N, float std, unsigned int seed) {
+void uniformDataset(float*& dataPointer, unsigned int dimension, unsigned int datasetSize, unsigned int seed) {
     srand(seed);  // for same initializations of random variables
 
-    unsigned int numElements = (unsigned int)dimension * N;
+    unsigned long long int numElements = (unsigned long long int)dimension * (unsigned long long int) datasetSize;
     dataPointer = new float[numElements];
 
-    for (unsigned int i = 0; i < N; i++) {
-        // pick a random vector, calculate magnitude of it
-        float norm = 0;
-        for (unsigned int d = 0; d < dimension; d++) {
-            unsigned int el = (i*dimension) + d;
-            dataPointer[el] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
-            norm += dataPointer[el]*dataPointer[el];
-        }
-        norm = sqrt(norm);
-
-        // divide each element by the magnitiude to normalie
-        for (unsigned int d = 0; d < dimension; d++) {
-            unsigned int el = (i*dimension) + d;
-            dataPointer[el] /= norm;
-        }
+    for (unsigned long long int i = 0; i < numElements; i++) {
+        dataPointer[i] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
     }
-}
-
-void clusterDataset(float*& dataPointer, unsigned int dimension, unsigned int& datasetSize, std::string data_directory) {
-    std::string filename = std::string(data_directory).append("cluster_").append(std::to_string(dimension)).append("D_N-1638400_single.bin");
-    printf("Cluster Filename: %s\n",filename.c_str());
-
-    // open dataset file
-    std::ifstream inputFileStream(filename.c_str(), std::ios::binary);
-    if(!inputFileStream.is_open()) {
-        std::cout << "Error: cannot open file " << filename.c_str() << std::endl;
-        return;
-    }
-
-    // read first integer, which should be the same as the dimension
-    unsigned int data_dimension;
-    inputFileStream.read((char*)&data_dimension, sizeof(int)); // reads first int, which gives us dimension of the following point
-    inputFileStream.seekg(0, std::ios::end);
-
-    // return error if dimension of dataset is different from input
-    if (dimension != data_dimension) {
-        std::cout << "Error: Dataset dimension different from input dimension" << std::endl;
-        std::cout << "  - Input dimension: " << dimension << std::endl;
-        std::cout << "  - Data dimension: " << data_dimension << std::endl;
-        return;
-    }
-
-    // get number of points in the dataset
-    std::ios::pos_type streamPosition = inputFileStream.tellg();
-    std::size_t byteSize = (std::size_t)streamPosition;
-    unsigned int fileDatasetSize = (unsigned int)(byteSize / (dimension*sizeof(float) + sizeof(int)));
-    datasetSize = fileDatasetSize;
-
-    // // return error if dataset size requested is larger than what we have
-    // if (datasetSize > fileDatasetSize) {
-    //     std::cout << "Error: Requested dataset size larger than dataset contains" << std::endl;
-    //     std::cout << "  - Requested size: " << datasetSize << std::endl;
-    //     std::cout << "  - True size: " << fileDatasetSize << std::endl;
-    //     datasetSize = fileDatasetSize;
-    // }
-    unsigned int numElements = (unsigned int)dimension * datasetSize;
-    dataPointer = new float[numElements];
-
-    // read the elements of the dataset
-    inputFileStream.seekg(0, std::ios::beg);
-    for(std::size_t i = 0; i < datasetSize; i++)
-    {
-        inputFileStream.seekg(sizeof(int), std::ios::cur);
-        inputFileStream.read((char*)(dataPointer + i*dimension), dimension*sizeof(float));
-    }
-    inputFileStream.close();
+    
     return;
 }
 
+/**
+ * @brief Get a clustered dataset
+ *
+ * @param datasetSize           desired datasetSize, adjusted value
+ * @param dimension             dimension of vectors
+ * @param numClusters           number of clusters in dataset
+ * @param variance              variance of the gaussian perturbations
+ * @return std::vector<std::vector<double>>
+ */
+void clusteredDataset(float*& dataPointer, unsigned int dimension, unsigned int &datasetSize, unsigned int seed, int const numClusters,
+                      float const variance) {
+    srand(seed);
+    unsigned int clusterSize = (unsigned int) ceil((double)(datasetSize) / (double)numClusters);
+    datasetSize = (clusterSize * (unsigned int) numClusters);
+
+    // initialize the vectors with length this
+    unsigned long long int numElements = (unsigned long long int) datasetSize * (unsigned long long int) dimension;
+    dataPointer = new float[numElements];
+
+    // shuffling the dataset for a random order
+    std::mt19937 rng(11);
+    std::vector<unsigned int> indices(datasetSize, 0);
+    std::iota(indices.begin(), indices.end(), 0);       // 0 , 1, 2, ... datasetSize-1
+    std::shuffle(indices.begin(), indices.end(), rng);  // shuffle indices by rng seed
+
+    // prepping for the gassians
+    std::default_random_engine generator;
+
+    // Add each cluster
+    unsigned long long int UL_DIMENSION = (unsigned long long int) dimension;
+    unsigned long long int UL_CLUSTERSIZE = (unsigned long long int) clusterSize;
+    std::vector<float> center_point; 
+    center_point.resize(dimension);
+    unsigned long long int c, d, i;
+    for (c = 0; c < (unsigned long long int) numClusters; c++) {
+        
+        // get the random cluster center
+        center_point.resize(dimension);
+        if (numClusters == 1) { // centered about origin
+            for (d = 0; d < UL_DIMENSION; d++) {
+                center_point[d] = 0;
+            }
+        } else {
+            for (d = 0; d < UL_DIMENSION; d++) {
+                center_point[d] = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 2 - 1;
+            }
+        }
+
+        // iterate through each dimension, perturbing each by a separate gaussian
+        for (d = 0; d < UL_DIMENSION; d++) { 
+
+            // initialize the new gaussian
+            std::normal_distribution<double> distribution(0.0, variance);
+
+            // generate new gaussian sample along this dimension
+            unsigned long long int oldIndex, newIndex;
+            for (i = 0; i < UL_CLUSTERSIZE; i++) {
+
+                // account for the shuffling -> new index for the point
+                oldIndex = (c * UL_CLUSTERSIZE) + i;
+                newIndex = (unsigned long long int) indices[oldIndex];
+
+                // sample the gaussian to add some perturbation
+                float perturbation = distribution(generator);
+                dataPointer[newIndex*UL_DIMENSION + d] = center_point[d] + perturbation;
+            }
+        }
+    }
+
+    return;
+}
+
+
+
+// generate dataset of [N,D] floating point numbers
+// uniformly distributed from [-1,1]
+void sphericalDataset(float*& dataPointer, unsigned int dimension, unsigned int datasetSize, unsigned int seed) {
+    float variance = 1; // variance of the gaussians
+
+    // random number generator
+    srand(seed);  // for same initializations of random variables
+    std::default_random_engine generator;
+
+    unsigned long long int numElements = (unsigned long long int)dimension * datasetSize;
+    dataPointer = new float[numElements];
+
+    // generate the values along each dimension with a new gaussian
+    unsigned long long int UL_DIMENSION = (unsigned long long int) dimension;
+    unsigned long long int d,i;
+    for (d = 0; d < UL_DIMENSION; d++) {
+
+        // new gaussian for each dimension
+        std::normal_distribution<float> distribution(0.0, variance);
+
+        // each point is a new sample of the gaussian
+        for (i = 0; i < (unsigned long long int) datasetSize; i++) {
+            dataPointer[i*UL_DIMENSION + d] = distribution(generator);
+        }
+    }
+
+    //> Normalize Each Vector to Lie on the Sphere
+    for (i = 0; i < (unsigned long long int) datasetSize; i++) {
+
+        // calculate the magntiude of each vector
+        float magnitude = 0;
+        for (d = 0; d < dimension; d++) {
+            magnitude += dataPointer[i*UL_DIMENSION + d]*dataPointer[i*UL_DIMENSION + d];
+        }
+        magnitude = sqrtf(magnitude);
+
+        // divide each value by the magnitude
+        for (d = 0; d < UL_DIMENSION; d++) {
+            dataPointer[i*UL_DIMENSION + d] = dataPointer[i*UL_DIMENSION + d] / magnitude;
+        }
+    }
+
+    return;
+}
 
 /**
  * @brief Datasets may not be randomized, i.e. ordered by class. Need to shuffle for optimization
@@ -137,31 +181,34 @@ void clusterDataset(float*& dataPointer, unsigned int dimension, unsigned int& d
  * @param dimension
  * @param datasetSize
  */
-void datasetShuffle(float*& dataPointer, unsigned int dimension, unsigned int datasetSize) {
+void datasetShuffle(float*& dataPointer, unsigned int const dimension, unsigned int const datasetSize) {
     int seed = 7;
     std::mt19937 rng(seed);
 
+    // create a vector for random assignment
     std::vector<unsigned int> indices(datasetSize, 0);
     std::iota(indices.begin(), indices.end(), 0);       // 0 , 1, 2, ... datasetSize-1
     std::shuffle(indices.begin(), indices.end(), rng);  // shuffle indices by rng seed
 
-    unsigned int numElements = datasetSize * dimension;
+    unsigned long long int numElements = (unsigned long long int) datasetSize * (unsigned long long int) dimension;
 
     // copy dataPointer to different one for temp storage
     float* oldDataPointer = new float[numElements];
-    for (unsigned int i = 0; i < numElements; i++) {
+    for (unsigned long long int i = 0; i < numElements; i++) {
         oldDataPointer[i] = dataPointer[i];
     }
 
     // for all points in newly shuffled order
-    unsigned int oldIndex = 0, newIndex = 0, oldElement = 0, newElement = 0;
-    for (newIndex = 0; newIndex < datasetSize; newIndex++) {
-        unsigned int oldIndex = indices[newIndex];
+    unsigned long long int UL_DIMENSION = (unsigned long long int) dimension;
+    unsigned long long int oldIndex, newIndex;
+    unsigned long long int oldElement, newElement;
+    for (newIndex = 0; newIndex < (unsigned long long int) datasetSize; newIndex++) {
+        oldIndex = (unsigned long long int) indices[ (unsigned int) newIndex];
 
         // get all elements of the points
-        for (unsigned int d = 0; d < dimension; d++) {
-            newElement = (newIndex * dimension) + d;
-            oldElement = (oldIndex * dimension) + d;
+        for (unsigned long long int d = 0; d < UL_DIMENSION; d++) {
+            newElement = (newIndex * UL_DIMENSION) + d;
+            oldElement = (oldIndex * UL_DIMENSION) + d;
             dataPointer[newElement] = oldDataPointer[oldElement];
         }
     }
@@ -172,214 +219,28 @@ void datasetShuffle(float*& dataPointer, unsigned int dimension, unsigned int da
 }
 
 /**
- * @brief Extract last few points from dataset as testset
- *
- * @param dimension
- * @param dataPointer
- * @param datasetSize
- * @param testPointer
- * @param testsetSize
+ * @brief Load the Dataset and Testset onto one Pointer
+ * 
+ * @param data_path         // location of LA/ folder containing LA.txt and LA_query.txt
+ * @param dataPointer 
+ * @param dimension 
+ * @param datasetSize 
  */
-void extractTestset(unsigned int dimension, float*& dataPointer, unsigned int& datasetSize, float*& testPointer, unsigned int testsetSize) {
-    unsigned int numElements = (unsigned int)dimension * testsetSize;
-    testPointer = new float[testsetSize * dimension];
+void LA(std::string data_path, float*& dataPointer, unsigned int& dimension, unsigned int& totalSize) {
+    std::string datasetPath = std::string(data_path).append("LA.txt");
+    std::string testsetPath = std::string(data_path).append("LA_query.txt");
 
-    datasetSize -= testsetSize;
-    unsigned int dataIndex = 0, testIndex = 0;
-    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        for (unsigned int d = 0; d < dimension; d++) {
-            testIndex = (queryIndex)*dimension + d;
-            dataIndex = (datasetSize + queryIndex) * dimension + d;
-            testPointer[testIndex] = dataPointer[dataIndex];
-        }
-    }
+    // hard-coded dataset parameters 
+    dimension = 2;
+    totalSize = 1073727 + 100; // N=1073727 in dataset, 100 in testset
 
-    return;
-}
+    // putting the full set onto the float pointer
+    dataPointer = new float[totalSize * dimension];
+    unsigned int index = 0; // counter for the datapoints
 
-
-
-void SIFT1M(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize) {
-    std::string data_path = data_directory.append("sift/sift_base.fvecs");
-
-    printf("get SIFT1M...\n");
-
-    // from https://github.com/facebookresearch/faiss/blob/main/demos/demo_sift1M.cpp
-    FILE* f = fopen(data_path.c_str(), "r");
-    if (!f) {
-        fprintf(stderr, "could not open %s\n", data_path.c_str());
-        perror("");
-        abort();
-    }
-
-    printf("opened...\n");
-    int d;
-    fread(&d, 1, sizeof(int), f);
-    //assert((d > 0 && d < 1000000) || !"unreasonable dimension");
-    fseek(f, 0, SEEK_SET);
-    struct stat st;
-    fstat(fileno(f), &st);
-    size_t sz = st.st_size;
-    //assert(sz % ((d + 1) * 4) == 0 || !"weird file size");
-    size_t n = sz / ((d + 1) * 4);
-
-    dataPointer = new float[n * (d + 1)];
-    size_t nr = fread(dataPointer, sizeof(float), n * (d + 1), f);
-    //assert(nr == n * (d + 1) || !"could not read whole file");
-
-    // shift array to remove row headers
-    for (size_t i = 0; i < n; i++) {
-        memmove(dataPointer + i * d, dataPointer + 1 + i * (d + 1), d * sizeof(*dataPointer));
-    }
-
-    printf("done!\n");
-
-    dimension = (unsigned int) d;
-    datasetSize = (unsigned int) n;
-    fclose(f);
-    return;
-}
-
-
-void DEEP10M(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string data_path = std::string(dataDirectory).append("deep10M.fvecs");
-    //deep10M.fvecs
-
-    printf("get DEEP...\n");
-
-    // from https://github.com/facebookresearch/faiss/blob/main/demos/demo_sift1M.cpp
-    FILE* f = fopen(data_path.c_str(), "r");
-    if (!f) {
-        fprintf(stderr, "could not open %s\n", data_path.c_str());
-        perror("");
-        abort();
-    }
-
-    printf("opened...\n");
-    int d;
-    fread(&d, 1, sizeof(int), f);
-    //assert((d > 0 && d < 1000000) || !"unreasonable dimension");
-    fseek(f, 0, SEEK_SET);
-    struct stat st;
-    fstat(fileno(f), &st);
-    size_t sz = st.st_size;
-    //assert(sz % ((d + 1) * 4) == 0 || !"weird file size");
-    size_t n = sz / ((d + 1) * 4);
-
-    //if (datasetSize > 0) {
-    //    n = (size_t) (datasetSize);
-    //}
-
-    dataPointer = new float[n * (d + 1)];
-    size_t nr = fread(dataPointer, sizeof(float), n * (d + 1), f);
-    //assert(nr == n * (d + 1) || !"could not read whole file");
-
-    // shift array to remove row headers
-    for (size_t i = 0; i < n; i++) {
-        memmove(dataPointer + i * d, dataPointer + 1 + i * (d + 1), d * sizeof(*dataPointer));
-    }
-
-    printf("done!\n");
-
-    dimension = (unsigned int) d;
-    datasetSize = (unsigned int) n;
-    fclose(f);
-    return;
-}
-
-
-// https://stackoverflow.com/questions/8286668/how-to-read-mnist-data-in-c
-int reverseInt (int i) 
-{
-    unsigned char c1, c2, c3, c4;
-
-    c1 = i & 255;
-    c2 = (i >> 8) & 255;
-    c3 = (i >> 16) & 255;
-    c4 = (i >> 24) & 255;
-
-    return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
-}
-
-void MNIST(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, std::string dataDirectory) {
-    std::string trainPath = std::string(dataDirectory).append("mnist-train.ubyte");
-    std::string testPath = std::string(dataDirectory).append("mnist-test.ubyte");
-
-    // https://deepai.org/dataset/mnist
-    std::ifstream file1(trainPath.c_str());
-    unsigned int datasetSize1 = 0;
-    if (file1.is_open()) {
-        int magic_number=0;
-        int number_of_images=0;
-        int n_rows=0;
-        int n_cols=0;
-        file1.read((char*)&magic_number,sizeof(magic_number)); 
-        magic_number= reverseInt(magic_number);
-        file1.read((char*)&number_of_images,sizeof(number_of_images));
-        number_of_images= reverseInt(number_of_images);
-        file1.read((char*)&n_rows,sizeof(n_rows));
-        n_rows= reverseInt(n_rows);
-        file1.read((char*)&n_cols,sizeof(n_cols));
-        n_cols= reverseInt(n_cols);
-        dimension = (unsigned int)(n_rows*n_cols);
-        datasetSize1 = (unsigned int) number_of_images;
-    }
-
-    // https://deepai.org/dataset/mnist
-    unsigned int datasetSize2 = 0;
-    std::ifstream file2(testPath.c_str());
-    if (file2.is_open()) {
-        int magic_number=0;
-        int number_of_images=0;
-        int n_rows=0;
-        int n_cols=0;
-        file2.read((char*)&magic_number,sizeof(magic_number)); 
-        magic_number= reverseInt(magic_number);
-        file2.read((char*)&number_of_images,sizeof(number_of_images));
-        number_of_images= reverseInt(number_of_images);
-        file2.read((char*)&n_rows,sizeof(n_rows));
-        n_rows= reverseInt(n_rows);
-        file2.read((char*)&n_cols,sizeof(n_cols));
-        n_cols= reverseInt(n_cols);
-        datasetSize2 = (unsigned int) number_of_images;
-    }
-
-    // now read all
-    datasetSize = datasetSize1 + datasetSize2;
-    dataPointer = new float[datasetSize * (dimension)];
-    if (file1.is_open()) {
-        for (unsigned int i = 0; i < datasetSize1; ++i) {
-            for (unsigned int d = 0; d < dimension; ++d) {
-                unsigned char temp = 0;
-                file1.read((char*)&temp,sizeof(temp));
-                dataPointer[(i*dimension)+d] = (float)(temp);
-            }
-        }
-    }
-    unsigned int start_idx = datasetSize1*dimension; 
-    if (file2.is_open()) {
-        for (unsigned int i = 0; i < datasetSize2; ++i) {
-            for (unsigned int d = 0; d < dimension; ++d) {
-                unsigned char temp = 0;
-                file2.read((char*)&temp,sizeof(temp));
-                dataPointer[start_idx+(i*dimension)+d] = (float)(temp);
-            }
-        }
-    }
-
-    file1.close();
-    file2.close();
-    return;
-}
-
-void LA(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize, 
-           float*& testPointer, unsigned int& testSetSize, 
-           std::string dataDirectory) {
-    std::string trainPath = std::string(dataDirectory).append("LA.txt");
-    std::string testPath = std::string(dataDirectory).append("LA_query.txt");
-
+    // open and save the data set
     // http://dbl.zju.edu.cn/~yjgao/MetricIndexes/Data.html
-    std::ifstream file1(trainPath.c_str());
+    std::ifstream file1(datasetPath.c_str());
     if (file1.is_open()) {
         std::string line,word;
 
@@ -387,14 +248,13 @@ void LA(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize,
         std::getline(file1,line); 
         std::stringstream line_SS(line);
         getline(line_SS,word,' ');
-        dimension = (unsigned int) (std::atoi(word.c_str()));
+        unsigned int dimension1 = (unsigned int) (std::atoi(word.c_str()));
         getline(line_SS,word,' ');
-        datasetSize = (unsigned int) (std::atoi(word.c_str()));
+        unsigned int datasetSize1 = (unsigned int) (std::atoi(word.c_str()));
         getline(line_SS,word,' '); // euclidean distance
+        printf("  * reading dataset file: N=%u, D=%u\n",datasetSize1, dimension1);
 
         // now, get all data
-        unsigned int index = 0;
-        dataPointer = new float[datasetSize * dimension];
         while (std::getline(file1, line)) {
             if (line == "") break;
 
@@ -406,46 +266,38 @@ void LA(float*& dataPointer, unsigned int& dimension, unsigned int& datasetSize,
             // get the second dim
             std::getline(lineSS1, word, ' ');
             dataPointer[index * dimension + (1)] = std::atof(word.c_str());
-            index += 1;
+            index++;
         }
     }
     file1.close();
 
-// 6032.63 5585.62
-// 6033.83 5585.80
-// 6026.04 5580.84
-// 6044.37 5573.30
-// 6042.56 5569.66
-
-    std::ifstream file2(testPath.c_str());
+    // open and save the test set
+    std::ifstream file2(testsetPath.c_str());
     if (file2.is_open()) {
         std::string line,word;
-        testSetSize = 100;
 
         // now, get all data
-        unsigned int index = 0;
-        testPointer = new float[testSetSize * dimension];
         while (std::getline(file2, line)) {
             if (line == "") break;
 
             // get the first dim
             std::stringstream lineSS1(line);
             std::getline(lineSS1, word, ' ');
-            testPointer[index * dimension + (0)] = std::atof(word.c_str());
+            dataPointer[index * dimension + (0)] = std::atof(word.c_str());
 
             // get the second dim
             std::getline(lineSS1, word, ' ');
-            testPointer[index * dimension + (1)] = std::atof(word.c_str());
-            index += 1;
+            dataPointer[index * dimension + (1)] = std::atof(word.c_str());
+            index++;
         }
     }
     file2.close();
+    printf("LA Dataset Opened. D=%u, N=%u\n",dimension, totalSize);
+
     return;
 }
 
-
 };  // namespace Datasets
-
 
 
 #endif  // datasets_hpp

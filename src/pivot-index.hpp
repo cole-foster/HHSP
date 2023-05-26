@@ -9,11 +9,8 @@
 #include "pivot-layer.hpp"
 
 namespace PivotIndex {
-    void Greedy_2L(float radius, SparseMatrix& sparseMatrix, std::vector<PivotLayer>& pivotLayers);
-    void Greedy_3L(std::vector<float> radiusVector, SparseMatrix& sparseMatrix, std::vector<PivotLayer>& pivotLayers);
-
-    bool validatePivotSelection(PivotLayer &pivotLayer, SparseMatrix &sparseMatrix);
-    bool validatePivotSelection_3L(std::vector<PivotLayer>& pivotLayers, SparseMatrix& sparseMatrix);
+    void CoverTree_Greedy(std::vector<float> radiusVector, SparseMatrix& sparseMatrix, std::vector<PivotLayer>& coverTree);
+    bool validateCoverTree(std::vector<PivotLayer>& pivotLayers, SparseMatrix& sparseMatrix);
     void printSet(std::vector<unsigned int> const& set);
 }
 

@@ -35,9 +35,16 @@ int main(int argc, char **argv) {
 
     // get dataset (with test set added)
     // dataset: 0...datsetSize-1, queryset: datasetSize-datasetSize+testsetSize
+    unsigned int totalSize = datasetSize + testsetSize;
     float *dataPointer = NULL;
     if (dataset == "uniform") {
-        Datasets::uniformDataset(dataPointer, dimension, datasetSize + testsetSize, 1, 3);
+        Datasets::uniformDataset(dataPointer, dimension, totalSize, 3);
+    } else if (dataset == "LA") { 
+        std::string data_path = "/users/cfoste18/scratch/LA/";
+        Datasets::LA(data_path, dataPointer, dimension, totalSize);
+        if (datasetSize + testsetSize > totalSize) {
+            datasetSize = totalSize - testsetSize;
+        }
     } else {
         printf("Unrecognized dataset: %s\n", dataset.c_str());
         return 0;

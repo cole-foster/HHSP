@@ -23,6 +23,35 @@ void printSet(std::vector<unsigned int> const &set);
 };  // namespace GHSP
 
 /**
+ * @brief Perform the HSP Test Hierarchically Given a Multi-Layer Cover Tree
+ *
+ * @param queryIndex
+ * @param coverTree
+ * @param sparseMatrix
+ * @param neighbors
+ */
+void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<PivotLayer> &coverTree,
+                                 SparseMatrix &sparseMatrix, std::vector<unsigned int> &neighbors) {
+    neighbors.clear();
+
+    // initialize query distance storage
+    unsigned int datasetSize = sparseMatrix._datasetSize;
+    sparseMatrix._clear();                      // remove all stored distances
+    sparseMatrix._addNewReference(queryIndex);  // add vector for query distance storage
+
+
+
+
+
+
+
+    return;
+}
+
+
+
+
+/**
  * @brief 3-Layer GHSP Search
  *
  * @param queryIndex
@@ -656,7 +685,7 @@ int GHSP::validatePivot(unsigned int const pivotIndex, float const radius, unsig
 void GHSP::GHSP_2L(unsigned int const queryIndex, std::vector<PivotLayer> &pivotLayers, SparseMatrix &sparseMatrix,
                    std::vector<unsigned int> &neighbors) {
     neighbors.clear();
-    PivotLayer& pivotLayer = pivotLayers[0];
+    PivotLayer &pivotLayer = pivotLayers[0];
 
     // initialize query distance storage
     unsigned int datasetSize = sparseMatrix._datasetSize;

@@ -7,9 +7,9 @@
 #include <vector>
 
 #include "CLI11.hpp"
+#include "datasets.hpp"
 #include "GHSP.hpp"
 #include "NNS.hpp"
-#include "datasets.hpp"
 #include "pivot-index.hpp"
 
 struct GHSP_Data {
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     std::string dataDirectory = "/users/cfoste18/scratch/sisap_data/";
     std::string dataset = "uniform";
     unsigned int dimension = 2;
-    unsigned int datasetSize = 1000;
+    unsigned int datasetSize = 0;
     unsigned int testsetSize = 100;
     int numThreads = 1;
     bool verbose = true;
@@ -70,9 +70,18 @@ int main(int argc, char **argv) {
     // get dataset (with test set added)
     // dataset: 0...datsetSize-1, queryset: datasetSize-datasetSize+testsetSize
     // ALSO HAVE A VALIDATION SET
+    unsigned int totalSize = datasetSize + testsetSize + testsetSize;
     float *dataPointer = NULL;
     if (dataset == "uniform") {  // validation set
-        Datasets::uniformDataset(dataPointer, dimension, datasetSize + 2 * testsetSize, 1, 3);
+        Datasets::uniformDataset(dataPointer, dimension, totalSize, 3);
+    } else if (dataset == "LA") { 
+        std::string data_path = "/users/cfoste18/scratch/LA/";
+        Datasets::LA(data_path, dataPointer, dimension, totalSize);
+        if (datasetSize == 0) {
+            datasetSize = totalSize - 2*testsetSize;
+        } else if (datasetSize + 2*testsetSize > totalSize) {
+            datasetSize = totalSize - 2*testsetSize;
+        }
     } else {
         printf("Unrecognized dataset: %s\n", dataset.c_str());
         return 0;
@@ -81,7 +90,7 @@ int main(int argc, char **argv) {
     // Perform Optimization by COBYLA
     double fmin;
     std::vector<double> lowerBounds(n, 0);
-    std::vector<double> upperBounds(n, 10);
+    std::vector<double> upperBounds(n, (double) 100*radiusVector[0]);
     int maxEval = 200;
     GHSP_Data g_data(dimension, dataPointer, datasetSize, testsetSize);
 
