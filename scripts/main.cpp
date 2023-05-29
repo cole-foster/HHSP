@@ -66,11 +66,7 @@ int main(int argc, char **argv) {
     std::vector<PivotLayer> pivotLayers;
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    if (numberOfLayers == 2) {
-        PivotIndex::Greedy_2L(radiusVector[0], *sparseMatrix, pivotLayers);
-    } else if (numberOfLayers == 3) {
-        PivotIndex::Greedy_3L(radiusVector, *sparseMatrix, pivotLayers);
-    }
+    PivotIndex::CoverTree_Greedy(radiusVector, *sparseMatrix, pivotLayers);
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
     unsigned long long int distances_ps = (dEnd - dStart);

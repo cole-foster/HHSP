@@ -43,6 +43,7 @@ int main(int argc, char **argv) {
     }  else if (dataset == "LA") { 
         std::string data_path = "/users/cfoste18/scratch/LA/";
         Datasets::LA(data_path, dataPointer, dimension, totalSetSize);
+        Datasets::datasetShuffle(dataPointer, dimension, totalSetSize);
         if (datasetSize + testsetSize > totalSetSize) {
             datasetSize = totalSetSize - testsetSize;
         }
@@ -71,7 +72,7 @@ int main(int argc, char **argv) {
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
     for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        GHSP::GHSP_3L(datasetSize + queryIndex, coverTree, *sparseMatrix, results_hsp_pivot[queryIndex]);
+        GHSP::Hierarchical_HSP_Test(datasetSize + queryIndex, coverTree, *sparseMatrix, results_hsp_pivot[queryIndex]);
     }
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -97,7 +98,9 @@ int main(int argc, char **argv) {
             printf("Error: Pivot NNS does not match GT!\n");
             printf("Q:%u,\n",queryIndex);
             printf("GT: "); printSet(results_hsp_bf[queryIndex]);
+            printf("%.4f\n",sparseMatrix->_computeDistance(queryIndex,results_hsp_bf[queryIndex][1]));
             printf("PI: "); printSet(results_hsp_pivot[queryIndex]);
+            printf("%.4f\n",sparseMatrix->_computeDistance(queryIndex,results_hsp_pivot[queryIndex][1]));
             break;
         }
     }
