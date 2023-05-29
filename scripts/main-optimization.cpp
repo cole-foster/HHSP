@@ -62,10 +62,6 @@ int main(int argc, char **argv) {
     app.add_option("-f,--fTol", fTol, "Stopping Condition: on function evaluation values");
     CLI11_PARSE(app, argc, argv);
     unsigned int n = radiusVector.size();
-    if (n > 2) {
-        printf("Can only optimize 2L and 3L hierarchies. Given an %d-layer hierarchy. abort\n", n + 1);
-        return 0;
-    }
 
     // get dataset (with test set added)
     // dataset: 0...datsetSize-1, queryset: datasetSize-datasetSize+testsetSize
@@ -226,15 +222,7 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     // get the radius vector
     std::vector<float> radiusVector(x.begin(), x.end());
     radiusVector.push_back(0.0f);
-
-    // effective pivot radius vector
-    std::vector<float> effectiveRadiusVector = radiusVector;
-    for (int i = 0; i < (int)effectiveRadiusVector.size(); i++) {
-        for (int j = i + 1; j < (int)x.size(); j++) {
-            effectiveRadiusVector[i] += (float)radiusVector[j];
-        }
-    }
-    int const numLayers = effectiveRadiusVector.size();
+    int numLayers = radiusVector.size() + 1;
 
     // initialize sparse matrix for distance computations
     std::shared_ptr<SparseMatrix> sparseMatrix =
@@ -242,17 +230,12 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     sparseMatrix->_datasetSize = datasetSize;
 
     //> Construct the pivot-index
-    std::vector<PivotLayer> pivotLayers{};
+    std::vector<PivotLayer> coverTree{};
     unsigned long long int dStart, dEnd;
     std::chrono::high_resolution_clock::time_point tStart, tEnd;
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    if (numLayers == 2) {
-        PivotIndex::Greedy_2L(effectiveRadiusVector[0], *sparseMatrix, pivotLayers);
-    } else if (numLayers == 3) {
-        effectiveRadiusVector.pop_back(); // don't want the end zero
-        PivotIndex::Greedy_3L(effectiveRadiusVector, *sparseMatrix, pivotLayers);
-    }
+    PivotIndex::CoverTree_Greedy(radiusVector, *sparseMatrix, coverTree);
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
     unsigned long long int distances_ps = (dEnd - dStart);
@@ -261,7 +244,7 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     //> Get Info on Hierarchy
     std::vector<unsigned int> pivotsPerLayer{};
     for (int i = 0; i < numLayers - 1; i++) {
-        pivotsPerLayer.push_back((unsigned int)pivotLayers[i].pivotIndices->size());
+        pivotsPerLayer.push_back((unsigned int)coverTree[i].pivotIndices->size());
     }
     pivotsPerLayer.push_back((unsigned int)datasetSize);
 
@@ -270,16 +253,8 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
     neighbors.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    if (numLayers == 2) {
-        // iterate through datasetSize+testsetSize+Q to get validation set
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            GHSP::GHSP_2L(datasetSize + testsetSize + queryIndex, pivotLayers, *sparseMatrix, neighbors[queryIndex]);
-        }
-    } else if (numLayers == 3) {
-        // iterate through datasetSize+testsetSize+Q to get validation set
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            GHSP::GHSP_3L(datasetSize + testsetSize + queryIndex, pivotLayers, *sparseMatrix, neighbors[queryIndex]);
-        }
+    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        GHSP::Hierarchical_HSP_Test(datasetSize + testsetSize + queryIndex, coverTree, *sparseMatrix, neighbors[queryIndex]);
     }
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -289,7 +264,6 @@ double objectiveFunction(const std::vector<double> &x, std::vector<double> &grad
 
     printf("%u,%u,", dimension, datasetSize);
     outputVector(radiusVector);
-    outputVector(effectiveRadiusVector);
     outputVector(pivotsPerLayer);
     printf("%llu,%.4f,", distances_ps, time_ps);
     printf("%.2f,%.4f\n", distances_hsp_pivot, time_hsp_pivot * 1000);
@@ -311,16 +285,7 @@ void fullRun(const std::vector<double> x, GHSP_Data &data) {
 
     //> get the radius vector
     std::vector<float> radiusVector(x.begin(), x.end());
-    radiusVector.push_back(0.0f);
-
-    // effective pivot radius vector
-    std::vector<float> effectiveRadiusVector = radiusVector;
-    for (int i = 0; i < (int)effectiveRadiusVector.size(); i++) {
-        for (int j = i + 1; j < (int)x.size(); j++) {
-            effectiveRadiusVector[i] += (float)radiusVector[j];
-        }
-    }
-    int const numLayers = effectiveRadiusVector.size();
+    int numLayers = radiusVector.size() + 1;
 
     //> initialize sparse matrix for distance computations
     std::shared_ptr<SparseMatrix> sparseMatrix =
@@ -328,17 +293,12 @@ void fullRun(const std::vector<double> x, GHSP_Data &data) {
     sparseMatrix->_datasetSize = datasetSize;
 
     //> construct the pivot-index
-    std::vector<PivotLayer> pivotLayers{};
+    std::vector<PivotLayer> coverTree{};
     unsigned long long int dStart, dEnd;
     std::chrono::high_resolution_clock::time_point tStart, tEnd;
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    if (numLayers == 2) {
-        PivotIndex::Greedy_2L(effectiveRadiusVector[0], *sparseMatrix, pivotLayers);
-    } else if (numLayers == 3) {
-        effectiveRadiusVector.pop_back(); // don't want the end zero
-        PivotIndex::Greedy_3L(effectiveRadiusVector, *sparseMatrix, pivotLayers);
-    }
+    PivotIndex::CoverTree_Greedy(radiusVector, *sparseMatrix, coverTree);
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
     unsigned long long int distances_ps = (dEnd - dStart);
@@ -347,68 +307,17 @@ void fullRun(const std::vector<double> x, GHSP_Data &data) {
     //> Get Info on Hierarchy
     std::vector<unsigned int> pivotsPerLayer{};
     for (int i = 0; i < numLayers - 1; i++) {
-        pivotsPerLayer.push_back((unsigned int)pivotLayers[i].pivotIndices->size());
+        pivotsPerLayer.push_back((unsigned int)coverTree[i].pivotIndices->size());
     }
     pivotsPerLayer.push_back((unsigned int)datasetSize);
-
-    //> perform nns time for all pivots, get average results
-    unsigned int nn_result;
-    dStart = sparseMatrix->_distanceComputationCount;
-    tStart = std::chrono::high_resolution_clock::now();
-    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-        NNS::NNS_BruteForce(datasetSize + queryIndex, datasetSize, *sparseMatrix, nn_result);
-    }
-    tEnd = std::chrono::high_resolution_clock::now();
-    dEnd = sparseMatrix->_distanceComputationCount;
-    double distances_nns_brute = (dEnd - dStart) / ((double)testsetSize);
-    double time_nns_brute =
-        std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double)testsetSize);
-
-    //> perform nns by index
-    dStart = sparseMatrix->_distanceComputationCount;
-    tStart = std::chrono::high_resolution_clock::now();
-    if (numLayers == 2) {
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            NNS::NNS_2L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, nn_result);
-        }
-    } else if (numLayers == 3) {
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            NNS::NNS_3L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, nn_result);
-        }
-    }
-    tEnd = std::chrono::high_resolution_clock::now();
-    dEnd = sparseMatrix->_distanceComputationCount;
-    double distances_nns_pivot = (dEnd - dStart) / ((double)testsetSize);
-    double time_nns_pivot =
-        std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double)testsetSize);
-
-    //> perform hsp search by brute force
-    // std::vector<std::vector<unsigned int>> results_hsp_brute{};
-    // results_hsp_brute.resize(testsetSize);
-    // dStart = sparseMatrix->_distanceComputationCount;
-    // tStart = std::chrono::high_resolution_clock::now();
-    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-    //     GHSP::HSP(datasetSize + queryIndex, datasetSize, *sparseMatrix, results_hsp_brute[queryIndex]);
-    // }
-    // tEnd = std::chrono::high_resolution_clock::now();
-    // dEnd = sparseMatrix->_distanceComputationCount;
-    // double distances_hsp_brute = (dEnd - dStart) / ((double)testsetSize);
-    // double time_hsp_brute =
-    //     std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double)testsetSize);
 
     // perform GHSP search on the pivot-index
     std::vector<std::vector<unsigned int>> results_hsp_pivot{};
     results_hsp_pivot.resize(testsetSize);
     dStart = sparseMatrix->_distanceComputationCount;
     tStart = std::chrono::high_resolution_clock::now();
-    if (numLayers == 2) {
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            GHSP::GHSP_2L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, results_hsp_pivot[queryIndex]);
-        }
-    } else if (numLayers == 3) {
-        for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-            GHSP::GHSP_3L(datasetSize + queryIndex, pivotLayers, *sparseMatrix, results_hsp_pivot[queryIndex]);
-        }
+    for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
+        GHSP::Hierarchical_HSP_Test(datasetSize + queryIndex, coverTree, *sparseMatrix, results_hsp_pivot[queryIndex]);
     }
     tEnd = std::chrono::high_resolution_clock::now();
     dEnd = sparseMatrix->_distanceComputationCount;
@@ -416,31 +325,15 @@ void fullRun(const std::vector<double> x, GHSP_Data &data) {
     double time_hsp_pivot =
         std::chrono::duration_cast<std::chrono::duration<double>>(tEnd - tStart).count() / ((double)testsetSize);
 
-    // ensure correctness
-    // bool hsp_correct = true;
-    // for (unsigned int queryIndex = 0; queryIndex < testsetSize; queryIndex++) {
-    //     if (results_hsp_brute[queryIndex] != results_hsp_pivot[queryIndex]) {
-    //         hsp_correct = false;
-    //         break;
-    //     }
-    // }
 
     printf("----------------------------------------------\n");
-    printf(
-        "D,N,r,ER,|P|,Index Distances,Index Time (s),BF NN Distances,BF NN Time (ms), Pivot NN Distances, Pivot NN "
-        "Time (ms), BF HSP Distances, BF HSP Time (ms), Pivot HSP Distances, Pivot HSP Time (ms),Correct\n");
-    printf("%u,%u,", dimension, datasetSize);
+    printf("N,R,|P|,Index Distances,Index Time (s), Pivot HSP Distances, Pivot HSP Time (ms) \n");
+    printf("%u,", datasetSize);
     outputVector(radiusVector);
-    outputVector(effectiveRadiusVector);
     outputVector(pivotsPerLayer);
     printf("%llu,%.4f,", distances_ps, time_ps);
-    printf("%.2f,%.4f,", distances_nns_brute, time_nns_brute * 1000);
-    printf("%.2f,%.4f,", distances_nns_pivot, time_nns_pivot * 1000);
-    // printf("%.2f,%.4f,", distances_hsp_brute, time_hsp_brute * 1000);
-    printf("-,-,");
     printf("%.2f,%.4f,", distances_hsp_pivot, time_hsp_pivot * 1000);
-    // printf("%u\n", hsp_correct);
-    printf("%u\n", 2); //hsp_correct);
+    printf("\n");
 
     return;
 }

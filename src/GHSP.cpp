@@ -61,7 +61,6 @@ void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<Pivo
         remainingPoints += (activePivots[layerIndex].size() + intermediatePivots[layerIndex].size());
     }
 
-
     // Begin the Cover Tree- HSP Algorithm Loop
     while (remainingPoints >= 0) {
 
@@ -124,6 +123,8 @@ void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<Pivo
             }
         }
 
+        
+
         //> Check the Domains of Active Pivots Top-Down
         std::vector<PriorityQueue> copy_activePivots = activePivots;
         for (int layerIndex = 0; layerIndex < numLayers - 1; layerIndex++) {
@@ -172,15 +173,15 @@ void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<Pivo
         //> Check the Domains of Intermediate Pivots Top-Down
         //  - improvement to make: if we have to examine the entire domain, then remove parent pivot from list
         //  - improvement to make: we can check if the entire domain is safe/invalid, then move to active list
-        std::vector<PriorityQueue> copy_intermediatePivots = intermediatePivots;
-
         for (int layerIndex = 0; layerIndex < numLayers - 1; layerIndex++) {
-            //
+            PriorityQueue list_copy = intermediatePivots[layerIndex];
+            intermediatePivots[layerIndex] = PriorityQueue();
+
             // iterate through the list of pivots on this layer
             std::pair<float, unsigned int> topOfQueue;
-            while (copy_intermediatePivots[layerIndex].size() > 0) {
-                topOfQueue = copy_intermediatePivots[layerIndex].top();
-                copy_intermediatePivots[layerIndex].pop();
+            while (list_copy.size() > 0) {
+                topOfQueue = list_copy.top();
+                list_copy.pop();
 
                 // get pivot information
                 unsigned int const pivotIndex = topOfQueue.second;
@@ -197,31 +198,59 @@ void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<Pivo
                         unsigned int const childIndex = pivotDomain[it1];
                         float const distance_Qc = getDistance(queryIndex, childIndex, sparseMatrix);
 
-                        // check if this child is the new closest point
-                        if (distance_Qc < dmin) {
-                            if (std::find(neighbors.begin(), neighbors.end(), childIndex) == neighbors.end()) {
+                        // if bottom layer, no domain
+                        if (layerIndex + 1 == numLayers - 1) {
+                            if (std::find(neighbors.begin(), neighbors.end(), childIndex) != neighbors.end()) continue;
 
-                                // pivots are intermediate: must check that they are not invalidated
-                                bool flag_validated = validatePoint(childIndex, queryIndex, neighbors, sparseMatrix);
-                                if (flag_validated) {
+                            // if point is valid, it is active (not intermediate) and can update dmin
+                            bool flag_validated = validatePoint(childIndex, queryIndex, neighbors, sparseMatrix);
+                            if (flag_validated) {
+                                if (distance_Qc < dmin) {
                                     dmin = distance_Qc;
                                     index1 = childIndex;
                                 }
+                                activePivots[layerIndex+1].push(std::make_pair(distance_Qc, childIndex)); 
                             }
-                        }
+                        } else {
+                            float const childRadius = coverTree[layerIndex+1].get_maxChildDistance(childIndex);
 
-                        // add pivot to examine if close enough
-                        if (layerIndex < numLayers - 2) {
-                            float const childRadius = coverTree[layerIndex + 1].get_maxChildDistance(childIndex);
-                            if (distance_Qc <= dmin + childRadius) {
-                                copy_intermediatePivots[layerIndex + 1].push(std::make_pair(distance_Qc, childIndex));
+                            // validate entire pivot domain
+                            //
+                            //  -----------------
+                            //
+                            bool flag_validated;
+                            int flag_outcome = validatePivot(childIndex, childRadius, queryIndex, neighbors, sparseMatrix, flag_validated);
+                            if (flag_validated) {
+                                if (distance_Qc < dmin) {
+                                    if (std::find(neighbors.begin(), neighbors.end(), childIndex) == neighbors.end()) {
+                                        dmin = distance_Qc;
+                                        index1 = childIndex;
+                                    }
+                                }
+                            }
+
+                            // based on entire pivot domain validation
+                            if (flag_outcome == 0) {  // active, not intermediate pivot
+                                if (distance_Qc <= dmin + childRadius) {  // must investigate lower domain
+                                    intermediatePivots[layerIndex+1].push(std::make_pair(distance_Qc, childIndex));
+                                } else {
+                                    activePivots[layerIndex+1].push(std::make_pair(distance_Qc, childIndex)); 
+                                }
+                            } else if (flag_outcome == 1) {  // pivot and domain eliminated
+                                continue;
+
+                            } else if (flag_outcome == 2) {  // intermediate pivot and domain  
+                                intermediatePivots[layerIndex+1].push(std::make_pair(distance_Qc, childIndex));
                             }
                         }
                     }
+                } else {
+                    intermediatePivots[layerIndex].push(std::make_pair(distance_Qp, pivotIndex));
                 }
             }
         }
 
+        // assign the new hsp neighbor
         if (dmin > 10000) break;                // large, magic number signaling no new neighbor possible
         unsigned int const x1 = index1;
         float const distance_Q1 = getDistance(queryIndex, x1, sparseMatrix);
@@ -326,7 +355,7 @@ void GHSP::Hierarchical_HSP_Test(unsigned int const queryIndex, std::vector<Pivo
 
                     //  - add the pivot back to the list
                     else {
-                        activePivots[layerIndex].push(std::make_pair(distance_Q2, pivotIndex));
+                        intermediatePivots[layerIndex].push(std::make_pair(distance_Q2, pivotIndex));
                     }
                 }
 
