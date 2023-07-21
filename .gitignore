@@ -3,7 +3,5 @@ build/
 old/
 bin/
 
-
-test.sh
+*.sh
 commands.txt
-bashRun_commands_csv.sh

@@ -11,4 +11,4 @@
 # target_link_libraries(src PUBLIC pivot_layer)
 
 # HHSP: overall library
-add_library(hhsp HierarchicalHSP.hpp HierarchicalHSP.cpp metrics.h)
+add_library(src HierarchicalHSP.hpp HierarchicalHSP.cpp metrics.h)

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(GHSP
+project(HierarchicalHSP
         VERSION 1.0
         LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
@@ -37,6 +37,20 @@ message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 
 # add the source files
 add_subdirectory(src)
+
+# add the pybind files
+add_subdirectory(include/pybind11)
+pybind11_add_module(HHSP python_bindings.cpp)
+target_include_directories(HHSP PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+
+
+# main- test
+# add_executable(org main-reorganize.cpp)
+# target_link_libraries(org hhsp)
+# target_include_directories(org PRIVATE ${PROJECT_SOURCE_DIR}/src)
+# target_include_directories(org PRIVATE ${PROJECT_SOURCE_DIR}/include)
+# install(TARGETS org)
 
 # add the scripts
 # add_subdirectory(scripts)
