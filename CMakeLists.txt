@@ -39,7 +39,7 @@ message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 add_subdirectory(src)
 
 # add the scripts
-add_subdirectory(scripts)
+# add_subdirectory(scripts)
 
 
 
