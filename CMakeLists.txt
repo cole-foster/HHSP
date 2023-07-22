@@ -41,8 +41,8 @@ add_subdirectory(src)
 # add the pybind files
 add_subdirectory(include/pybind11)
 pybind11_add_module(HHSP python_bindings.cpp)
-target_include_directories(HHSP PRIVATE ${PROJECT_SOURCE_DIR}/src)
-
+target_include_directories(HHSP PRIVATE src)
+# target_link_libraries(HHSP INTERFACE src)
 
 
 # main- test

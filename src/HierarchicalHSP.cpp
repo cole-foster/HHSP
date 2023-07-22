@@ -10,64 +10,62 @@
  *  - when query is member of dataset, don't check for interference.
  *
  */
-void HierarchicalHSP::HSP_Test(float* query_pointer, std::vector<elementID>& neighbors) const {
-    neighbors.clear();
+// void HierarchicalHSP::HSP_Test(float* query_pointer, std::vector<elementID>& neighbors) const {
+//     neighbors.clear();
 
-    // only perform on k closest elements
-    std::vector<std::pair<float, elementID>> active_list{};
-    active_list.resize(dataset_size_);
+//     // only perform on k closest elements
+//     std::vector<std::pair<float, elementID>> active_list{};
+//     active_list.resize(dataset_size_);
 
-    // find next nearest neighbor and create list of distances
-    elementID index1;
-    float distance_Q1 = HUGE_VAL;
-    for (elementID index = 0; index < (elementID) dataset_size_; index++) {
-        float const distance = compute_distance(query_pointer, internalDataPointer_(index));
-        if (distance < distance_Q1) {
-            distance_Q1 = distance;
-            index1 = index;
-        }
-        active_list.emplace_back(distance, index);
-    }
+//     // find next nearest neighbor and create list of distances
+//     elementID index1;
+//     float distance_Q1 = HUGE_VAL;
+//     for (elementID index = 0; index < (elementID) dataset_size_; index++) {
+//         float const distance = compute_distance(query_pointer, internalDataPointer_(index));
+//         if (distance < distance_Q1) {
+//             distance_Q1 = distance;
+//             index1 = index;
+//         }
+//         active_list.emplace_back(distance, index);
+//     }
 
-    // perform the hsp loop
-    while (active_list.size() > 0) {
-        neighbors.push_back(index1);
-        float* index1_ptr = internalDataPointer_(index1);
+//     // perform the hsp loop
+//     while (active_list.size() > 0) {
+//         neighbors.push_back(index1);
+//         float* index1_ptr = internalDataPointer_(index1);
 
-        //  - set up for the next hsp neighbor
-        elementID index1_next;
-        float distance_Q1_next = HUGE_VAL;
+//         //  - set up for the next hsp neighbor
+//         elementID index1_next;
+//         float distance_Q1_next = HUGE_VAL;
 
-        //  - initialize the active_list for next iteration
-        std::vector<std::pair<float, elementID>> active_list_copy = active_list;
-        active_list.clear();
+//         //  - initialize the active_list for next iteration
+//         std::vector<std::pair<float, elementID>> active_list_copy = active_list;
+//         active_list.clear();
 
-        //  - check each point for elimination
-        for (int it1 = 0; it1 < (int)active_list_copy.size(); it1++) {
-            elementID const index2 = active_list_copy[it1].second;
-            if (index2 == index1) continue;
-            float const distance_Q2 = active_list_copy[it1].first;
-            float const distance_12 = compute_distance(index1_ptr, internalDataPointer_(index2));
+//         //  - check each point for elimination
+//         for (int it1 = 0; it1 < (int)active_list_copy.size(); it1++) {
+//             elementID const index2 = active_list_copy[it1].second;
+//             if (index2 == index1) continue;
+//             float const distance_Q2 = active_list_copy[it1].first;
+//             float const distance_12 = compute_distance(index1_ptr, internalDataPointer_(index2));
 
-            // check the hsp inequalities: add if not satisfied
-            if (distance_Q1 >= distance_Q2 || distance_12 >= distance_Q2) {
-                active_list.emplace_back(distance_Q2, index2);
-                if (distance_Q2 < distance_Q1_next) {
-                    distance_Q1_next = distance_Q2;
-                    index1_next = index2;
-                }
-            }
-        }
+//             // check the hsp inequalities: add if not satisfied
+//             if (distance_Q1 >= distance_Q2 || distance_12 >= distance_Q2) {
+//                 active_list.emplace_back(distance_Q2, index2);
+//                 if (distance_Q2 < distance_Q1_next) {
+//                     distance_Q1_next = distance_Q2;
+//                     index1_next = index2;
+//                 }
+//             }
+//         }
 
-        // setup the next hsp neighbor
-        index1 = index1_next;
-        distance_Q1 = distance_Q1_next;
-    }
+//         // setup the next hsp neighbor
+//         index1 = index1_next;
+//         distance_Q1 = distance_Q1_next;
+//     }
 
-
-
-    return;
-}
+//     return;
+// }
 
 
 // /**
