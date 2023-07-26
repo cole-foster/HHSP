@@ -1,8 +1,5 @@
 # Hierarchical HSP
 
-
-
-
 #### Python Bindings
 - python version 3.7.4
 - virtual environment

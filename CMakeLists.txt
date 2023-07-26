@@ -32,19 +32,17 @@ MESSAGE("NLOPT: ${NLOPT}")
 
 # set CMAKE_INSTALL_PREFIX as default location of `make install` command
 # creates a bin/ folder within the location
+message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}")
 message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 
-message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
-
 # add the source files
-add_subdirectory(src)   # needs to be header-only or compiled as shared library
+add_subdirectory(src)
 
-# add the pybind files
-add_subdirectory(include/pybind11)
-pybind11_add_module(HHSP python_bindings.cpp)
-target_link_libraries(HHSP PRIVATE src)
-target_include_directories(HHSP PRIVATE src)
+option(USE_PYTHON_BINDINGS "Enable compilation of Python Bindings" ON)
+IF (USE_PYTHON_BINDINGS)
+    add_subdirectory(python_bindings)
+ENDIF()
 
 # main- test
 # add_executable(org main-reorganize.cpp)
