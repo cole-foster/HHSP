@@ -39,6 +39,10 @@ message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 # add the source files
 add_subdirectory(src)
 
+# add the cpp executables
+#add_subdirectory(examples/cpp/)
+
+# python bindings if desired
 option(USE_PYTHON_BINDINGS "Enable compilation of Python Bindings" ON)
 IF (USE_PYTHON_BINDINGS)
     add_subdirectory(include/pybind11)
@@ -46,13 +50,3 @@ IF (USE_PYTHON_BINDINGS)
     target_link_libraries(HHSP PUBLIC SRC)
     target_include_directories(HHSP PUBLIC ${PROJECT_SOURCE_DIR}/src)
 ENDIF()
-
-# main- test
-# add_executable(org main-reorganize.cpp)
-# target_link_libraries(org hhsp)
-# target_include_directories(org PRIVATE ${PROJECT_SOURCE_DIR}/src)
-# target_include_directories(org PRIVATE ${PROJECT_SOURCE_DIR}/include)
-# install(TARGETS org)
-
-# add the scripts
-# add_subdirectory(scripts)
