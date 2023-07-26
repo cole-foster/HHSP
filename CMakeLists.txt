@@ -41,7 +41,10 @@ add_subdirectory(src)
 
 option(USE_PYTHON_BINDINGS "Enable compilation of Python Bindings" ON)
 IF (USE_PYTHON_BINDINGS)
-    add_subdirectory(python_bindings)
+    add_subdirectory(include/pybind11)
+    pybind11_add_module(HHSP python_bindings.cpp)
+    target_link_libraries(HHSP PUBLIC SRC)
+    target_include_directories(HHSP PUBLIC ${PROJECT_SOURCE_DIR}/src)
 ENDIF()
 
 # main- test

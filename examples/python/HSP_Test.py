@@ -4,11 +4,10 @@ import numpy as np
 import time
 
 # import the module from the build/ folder
-sys.path.append('../build/')
+sys.path.append('../../build/')
 from HHSP import HHSP
 
-
-
+# 
 def main(dimension, dataset_size, radii, num_queries):
 
     # iniitialize the dataset: contiguous array, 4-byte floats
@@ -20,7 +19,7 @@ def main(dimension, dataset_size, radii, num_queries):
     query_data = np.ascontiguousarray(np.random.random([num_queries,dimension]),dtype=np.float32)*2 - 1 # from [-1,1]
     query_buffer = query_data.data
 
-    # initialize the HHSP with dataset
+    # Initialize the HHSP Object with Dataset
     alg = HHSP(dimension)
     alg.add_dataset(data_buffer)
 
@@ -56,19 +55,18 @@ if __name__ == "__main__":
         type=int,
         default=2
     )
-    parser.add_argument("--size","-N",
+    parser.add_argument("--dataset_size","-N",
         type=int,
         default=10000,
     )
     parser.add_argument('-r','--radii', 
         nargs='+',
         type=float,
-        required=True)
-    parser.add_argument(
-        "--queries", "-T",
+        default=[0.2, 0.04])
+    parser.add_argument("--num_queries", "-T",
         type=int,
         default=100,
     )
 
     args = parser.parse_args()
-    main(args.dimension, args.size, args.radii, args.queries)
+    main(args.dimension, args.dataset_size, args.radii, args.num_queries)
