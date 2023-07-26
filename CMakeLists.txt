@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(HierarchicalHSP
-        VERSION 1.0
-        LANGUAGES CXX)
+    VERSION 1.0
+    LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
@@ -21,11 +21,13 @@ MESSAGE("OpenMP: ${OpenMP_pthread_LIBRARY}")
 
 # GHSP optimization
 option(GHSP_OPT "enable use/build of optimization library" OFF)
-if (GHSP_OPT)
+
+if(GHSP_OPT)
     SET(NLOPT_HOME "/users/cfoste18/data/cfoste18/hRNG/hRNG_Optimization/include/nlopt/install")
     SET(NLOPT_DIRECTORIES "${NLOPT_HOME}/include/")
     find_library(NLOPT nlopt PATHS "${NLOPT_HOME}/lib/")
 endif()
+
 MESSAGE("NLOPT: ${NLOPT}")
 
 # set CMAKE_INSTALL_PREFIX as default location of `make install` command
@@ -36,14 +38,13 @@ message("CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
 message("PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 
 # add the source files
-add_subdirectory(src)
+add_subdirectory(src)   # needs to be header-only or compiled as shared library
 
 # add the pybind files
 add_subdirectory(include/pybind11)
 pybind11_add_module(HHSP python_bindings.cpp)
+target_link_libraries(HHSP PRIVATE src)
 target_include_directories(HHSP PRIVATE src)
-# target_link_libraries(HHSP INTERFACE src)
-
 
 # main- test
 # add_executable(org main-reorganize.cpp)
@@ -54,6 +55,3 @@ target_include_directories(HHSP PRIVATE src)
 
 # add the scripts
 # add_subdirectory(scripts)
-
-
-

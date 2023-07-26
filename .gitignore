@@ -2,6 +2,7 @@ slurms/
 build/
 old/
 bin/
+.vscode/
 
 *.sh
 commands.txt
